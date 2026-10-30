@@ -1,0 +1,8 @@
+build/
+obj/
+*.o
+*.d
+__pycache__/
+.pytest_cache/
+.vscode/
+*.log

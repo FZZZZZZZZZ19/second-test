@@ -1,0 +1,23 @@
+#ifndef APP_CONFIG_H
+#define APP_CONFIG_H
+#define APP_VERSION "1.0.0"
+#define APP_CONTROL_PERIOD_MS 5u
+#define APP_WIDTH 188u
+#define APP_HEIGHT 120u
+#define APP_ROW_STEP 4u
+#define APP_ROWS (APP_HEIGHT / APP_ROW_STEP)
+#define APP_RUNS 4u
+#define APP_PATHS 4u
+#define APP_Y_CAPACITY 8u
+#define APP_ENABLE_TFT 1
+#define APP_ENABLE_PARAM_FLASH 1
+#define APP_PARAM_RECORD_BYTES 256u
+#define APP_PARAM_SLOT0 0x0803E000u
+#define APP_PARAM_SLOT1 0x0803F000u
+#define APP_CAL_GEOMETRY (1u << 0)
+#define APP_CAL_ENCODER (1u << 1)
+#define APP_CAL_DIRECTION (1u << 2)
+#define APP_CAL_CAMERA (1u << 3)
+#define APP_CAL_TIMING (1u << 4)
+#define APP_CAL_REQUIRED 31u
+#endif

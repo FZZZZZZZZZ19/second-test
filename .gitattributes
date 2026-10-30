@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.a -text
+*.elf -text
+*.bin -text
+*.hex -text
+*.png -text
+*.jpg -text

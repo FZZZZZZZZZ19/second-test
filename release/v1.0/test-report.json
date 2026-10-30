@@ -1,0 +1,25 @@
+{
+  "compiler": "gcc.exe (x86_64-posix-seh-rev0, Built by MinGW-Builds project) 13.2.0",
+  "modules": [
+    "app_math",
+    "vehicle_param",
+    "speed_control",
+    "motion_plan",
+    "vision_line",
+    "vehicle_progress",
+    "track_element",
+    "path_control",
+    "run_manager"
+  ],
+  "results": [
+    {
+      "profile": "default",
+      "result": "PASS: 5 groups, 138406 assertions"
+    },
+    {
+      "profile": "configured_route",
+      "result": "PASS: 5 groups, 138410 assertions"
+    }
+  ],
+  "status": "PASS"
+}
