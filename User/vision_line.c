@@ -15,21 +15,26 @@ bool vision_line_process(const FrameView *f, const AppParam *p, VisionFeatures *
     memset(o, 0, sizeof(*o));
     o->frame_id = f->frame_id;
     o->capture_ms = f->capture_ms;
+    if (!vision_boundary_process(f, &o->boundary))
+        return false;
+    if (!o->boundary.valid || o->boundary.overflow) {
+        o->overflow = o->boundary.overflow;
+        return true;
+    }
     unsigned wide = 0, splits = 0, merge_rows = 0;
     for (unsigned row = 0; row < APP_ROWS; row++) {
         unsigned y = APP_HEIGHT - 3u - row * APP_ROW_STEP;
         RowRuns *r = &o->rows[row];
-        const uint8_t *pix = f->pixels + y * f->stride;
         unsigned x = 0;
         float expected =
             p->width_near_px + (p->width_far_px - p->width_near_px) * (float)row / (APP_ROWS - 1u);
         while (x < APP_WIDTH) {
-            while (x < APP_WIDTH && pix[x] <= p->threshold)
+            while (x < APP_WIDTH && !vision_component_pixel(x, y))
                 x++;
             if (x == APP_WIDTH)
                 break;
             unsigned left = x;
-            while (x < APP_WIDTH && pix[x] > p->threshold)
+            while (x < APP_WIDTH && vision_component_pixel(x, y))
                 x++;
             unsigned width = x - left;
             if (width < 2)
@@ -117,7 +122,43 @@ bool vision_line_process(const FrameView *f, const AppParam *p, VisionFeatures *
     o->confidence = (uint8_t)(100u * best_count / APP_ROWS);
     o->split = splits >= 3;
     o->merge = merge_rows >= 3;
-    o->cross = wide >= 2 && !o->split;
+    uint8_t sides = 0;
+    for (unsigned i = 0; i < o->boundary.port_count; i++)
+        sides |= o->boundary.ports[i].sides;
+    o->cross = o->boundary.port_count == 4 && sides == 15;
+    o->split =
+        !o->cross && (o->boundary.port_count == 3 || o->boundary.island_candidate || o->split);
+    /* Match each path to a visible exit. Crosses explicitly choose the top exit. */
+    for (unsigned j = 0; j < o->path_count; j++) {
+        PathCandidate *q = &o->paths[j];
+        float end = APP_WIDTH * .5f;
+        for (int row = (int)APP_ROWS - 1; row >= 0; row--)
+            if (q->valid_rows & (1u << row)) {
+                end = q->x[row];
+                break;
+            }
+        float best = 1e9f;
+        int exit = -1;
+        for (unsigned i = 0; i < o->boundary.port_count; i++) {
+            BorderPort port = o->boundary.ports[i];
+            if (port.sides & 1)
+                continue;
+            if (o->cross && !(port.sides & 4))
+                continue;
+            float cost = fabsf((float)port.midpoint.x - end);
+            if (cost < best) {
+                best = cost;
+                exit = (int)i;
+            }
+        }
+        if (exit >= 0) {
+            q->target_x = o->boundary.ports[exit].midpoint.x;
+            q->target_y = o->boundary.ports[exit].midpoint.y;
+            q->target_valid = true;
+        }
+    }
+    if (best_count >= 3 && o->boundary.port_count == 2 && o->confidence < 60)
+        o->confidence = 60;
     if (wide > APP_ROWS / 2)
         o->confidence = 0;
     return true;

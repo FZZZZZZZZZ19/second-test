@@ -14,7 +14,7 @@ def main():
     args = parser.parse_args()
     out = ROOT / 'build/host'
     out.mkdir(parents=True, exist_ok=True)
-    names = ['app_math', 'vehicle_param', 'speed_control', 'motion_plan', 'vision_line',
+    names = ['app_math', 'vehicle_param', 'speed_control', 'motion_plan', 'vision_line', 'vision_boundary',
              'vehicle_progress', 'track_element', 'path_control', 'run_manager']
     executable = out / 'test_app.exe'
     command = [args.cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2',

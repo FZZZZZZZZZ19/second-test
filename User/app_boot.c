@@ -50,7 +50,7 @@ void app_main_poll(void) {
                 app_exchange_publish_motion(&request);
             }
         }
-        debug_view_frame(&frame, &snapshot);
+        debug_view_frame(&frame, &snapshot, &features);
         camera_frame_release(frame.frame_id);
     }
     debug_view_poll(&snapshot);

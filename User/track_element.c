@@ -250,7 +250,8 @@ bool track_element_step(TrackContext *s, const VisionFeatures *f, const AppParam
 #endif
     if (s->state != TRACK_NORMAL)
         o->speed_cap = p->speed_element;
-    else if (fabsf(f->paths[selected].trend) > 2)
+    else if (fabsf(f->paths[selected].trend) > 2 ||
+             (f->paths[selected].target_valid && f->paths[selected].target_y > 8))
         o->speed_cap = p->speed_corner;
     s->locked_x = endpoint(&f->paths[selected]);
     s->locked_trend = f->paths[selected].trend;

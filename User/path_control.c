@@ -30,6 +30,32 @@ bool path_control_step(PathControlState *s, const VisionFeatures *f, const Track
     if (weight == 0)
         return false;
     float e = (sum / weight - p->center_x_px) / (APP_WIDTH * .5f);
+    if (q->target_valid) {
+        float tx = q->target_x, ty = q->target_y;
+        /* Nearby folds: aim at the next corner on the selected side. */
+        int best = -1;
+        unsigned best_y = 0;
+        for (unsigned i = 0; i < f->boundary.corner_count; i++) {
+            VisionPoint c = f->boundary.corners[i];
+            if (c.y > 20 && c.y < APP_HEIGHT - 12 && c.y > best_y &&
+                ((tx >= p->center_x_px) == (f->boundary.corner_side[i] != 0))) {
+                best = (int)i;
+                best_y = c.y;
+            }
+        }
+        if (best >= 0 && d->state == TRACK_NORMAL && !f->cross && !f->split) {
+            VisionPoint c = f->boundary.corners[best];
+            tx = (tx + c.x) * .5f;
+            ty = (ty + c.y) * .5f;
+        }
+        float dx = tx - p->center_x_px, dy = fmaxf(1, (APP_HEIGHT - 1) - ty);
+        o->direction_rad = atan2f(dx, dy);
+        o->distance_px = sqrtf(dx * dx + dy * dy);
+        e = o->direction_rad;
+    } else {
+        o->direction_rad = atan2f(sum / weight - p->center_x_px, APP_HEIGHT * .5f);
+        o->distance_px = APP_HEIGHT * .5f;
+    }
     uint32_t elapsed = f->capture_ms - s->previous_ms;
     float dt = (float)elapsed * .001f;
     if (!s->initialized || d->reset_d || elapsed < 5 || elapsed > 200)

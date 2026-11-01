@@ -4,6 +4,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -23,9 +24,11 @@ def main():
         parser.error('Set WCH_TOOLCHAIN or --toolchain to the WCH GCC 8.2 toolchain bin directory')
     bin_dir = Path(gcc).parent
     suffix = '.exe' if os.name == 'nt' else ''
+    firmware_version = re.search(r'#define APP_VERSION "([^"]+)"', (ROOT / 'User/app_config.h').read_text()).group(1)
+    stem = 'second-test-v' + '.'.join(firmware_version.split('.')[:2])
     out = ROOT / 'build' / 'target'
     out.mkdir(parents=True, exist_ok=True)
-    for name in ['second-test-v1.0.elf', 'second-test-v1.0.hex', 'second-test-v1.0.bin', 'build-report.json']:
+    for name in [stem + '.elf', stem + '.hex', stem + '.bin', 'build-report.json']:
         (out / name).unlink(missing_ok=True)
     inc = ['User', 'Core', 'Debug', 'Peripheral/inc', 'zf_common', 'zf_driver', 'zf_device', 'zf_components']
     common = ['-march=rv32imafcxw', '-mabi=ilp32f', '-msmall-data-limit=8',
@@ -42,7 +45,7 @@ def main():
         flags = common + [flag for item in inc for flag in ['-I', str(ROOT / item)]]
         if src.suffix == '.c':
             flags += ['-std=gnu11', '-Wall', '-Wextra']
-            if src.parent.name == 'User' and src.name.startswith(('main.c', 'app_', 'board_', 'camera_frame', 'debug_view', 'motor', 'motion_plan', 'param_store', 'path_control', 'run_manager', 'side_encoder', 'speed_control', 'track_element', 'vehicle_', 'vision_line')):
+            if src.parent.name == 'User' and src.name.startswith(('main.c', 'app_', 'board_', 'camera_frame', 'debug_view', 'motor', 'motion_plan', 'param_store', 'path_control', 'run_manager', 'side_encoder', 'speed_control', 'track_element', 'vehicle_', 'vision_')):
                 flags += ['-Werror']
         cmd = [gcc, *flags, '-c', str(src), '-o', str(obj)]
         result = subprocess.run(cmd, capture_output=True, text=True, errors='replace')
@@ -58,10 +61,10 @@ def main():
                 (out / 'compile.log').write_text('\n'.join(logs), encoding='utf-8')
                 print(result.stderr, file=sys.stderr)
                 raise SystemExit(result.returncode)
-    elf = out / 'second-test-v1.0.elf'
+    elf = out / (stem + '.elf')
     link = [gcc, *common, *objects, '-T', str(ROOT / 'Ld/Link.ld'),
             '-L', str(ROOT / 'zf_device'), '-nostartfiles', '--specs=nano.specs', '--specs=nosys.specs',
-            '-Wl,--gc-sections', '-Wl,-Map=' + str(out / 'second-test-v1.0.map'),
+            '-Wl,--gc-sections', '-Wl,-Map=' + str(out / (stem + '.map')),
             '-Wl,--print-memory-usage', '-Wl,--start-group', '-lzf_device_config', '-lm', '-lc', '-Wl,--end-group', '-o', str(elf)]
     r = subprocess.run(link, capture_output=True, text=True, errors='replace')
     logs.append(r.stdout + r.stderr)
@@ -77,7 +80,7 @@ def main():
     inputs = sorted(set(sources + [ROOT / 'Ld/Link.ld', ROOT / 'zf_device/libzf_device_config.a'] +
                         [p for folder in inc for p in (ROOT / folder).glob('*.h')]))
     manifest = {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
-    report = {'compiler': version, 'sources': len(sources), 'size': size.replace(str(elf), elf.name),
+    report = {'firmware_version': firmware_version, 'compiler': version, 'sources': len(sources), 'size': size.replace(str(elf), elf.name),
               'source_files_sha256': manifest,
               'warning_lines': [line.replace(str(ROOT), '.') for log in logs for line in log.splitlines() if 'warning:' in line],
               'artifacts': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in [elf, elf.with_suffix('.hex'), elf.with_suffix('.bin')]}}

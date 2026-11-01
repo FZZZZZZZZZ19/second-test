@@ -13,7 +13,7 @@ void debug_view_init(void) {
     tft180_set_dir(TFT180_CROSSWISE);
     tft180_set_font(TFT180_6X8_FONT);
     tft180_clear();
-    printf("\r\nsecond-test v1.0: STATIC; calibrate before READY\r\n");
+    printf("\r\nsecond-test v" APP_VERSION ": STATIC; calibrate before READY\r\n");
 }
 static void line(unsigned row, const char *message) {
     char padded[27];
@@ -78,12 +78,12 @@ void debug_view_poll(const ControlSnapshot *s) {
                s->config_ok, (long)s->feedback.delta[0], (long)s->feedback.delta[1]);
     }
 }
-void debug_view_frame(const FrameView *f, const ControlSnapshot *s) {
+void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionFeatures *v) {
     uint32_t now = board_time_ms();
     if (image_page && s->mode == RUN_STATIC_DEBUG && now - last_image >= 200) {
         last_image = now;
         tft180_show_gray_image(0, 0, f->pixels, f->width, f->height, 160, 100,
-                               g_app_param.threshold);
+                               v->boundary.threshold);
         tft180_show_string(0, 104, "R: return, binary view");
     }
 }

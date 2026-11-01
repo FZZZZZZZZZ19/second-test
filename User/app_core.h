@@ -9,6 +9,8 @@ bool speed_pi_step(SpeedPiState *s, float target, float measured, float dt, floa
 bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float omega, float dt,
                       bool stop, SideTargets *out);
 bool vision_line_process(const FrameView *f, const AppParam *p, VisionFeatures *out);
+bool vision_boundary_process(const FrameView *f, BoundaryFeatures *out);
+bool vision_component_pixel(unsigned x, unsigned y);
 void track_element_reset(TrackContext *s, uint32_t session, bool race, uint8_t y_count);
 bool track_element_step(TrackContext *s, const VisionFeatures *f, const AppParam *p,
                         const SideFeedback *fb, bool commit, bool yaw_valid, float yaw,

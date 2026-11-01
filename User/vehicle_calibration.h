@@ -13,4 +13,5 @@
 #define CAL_MASK 0u
 #define CAL_CAPTURE_VALIDATED 0
 #define CAL_FULL_RACE 0
+#define CAL_VISION_V2_VALIDATED 0 /* revalidate Otsu, contour timing and steering gains */
 #endif

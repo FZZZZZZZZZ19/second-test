@@ -1,15 +1,19 @@
-# second-test · CH32V307 智能车 V1.0
+# second-test · CH32V307 智能车 V1.1
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
 已用 WCH GCC 8.2 完成实际目标编译链接，生成 ELF、HEX、BIN；主机回归测试覆盖生产算法源码。**尚未上板验证，默认实测参数为空，保持静态调试并禁止发车。** 完整比赛路线还需现场配置和验证。
+
+## 新版视觉
+
+已按2026-11-01新增视觉大纲加入 Otsu、连通道路、外轮廓追踪、截断区间/折点与方向角/像素距离接口。详见 [V1.1新版视觉实现说明](docs/V1.1新版视觉实现说明.md)。默认 `CAL_VISION_V2_VALIDATED=0`，必须重新验证方向增益和最坏帧处理时间后启用；内部孔洞轮廓枚举及完整折点几何策略的现有边界在说明中列出。
 
 ## 先读这里
 
 - [V1.0 代码书写流程](docs/V1.0代码书写流程.md)：从模板到当前源码的实现顺序、构建和上板步骤。
 - [V1.0 项目结构、函数调度、主流程与参数](docs/V1.0项目结构与主流程参数说明.md)：逐文件对应函数，解释轮子怎么动、各参数怎么填。
 - [两份 epro 的引脚与驱动核对](docs/hardware/引脚与驱动核对.md)：原始网络证据、接口脚号、驱动限制。
-- [默认配置固件与验证记录](release/v1.0)：本次构建产物；标定后请重新编译。
+- [默认配置固件与验证记录](release/v1.1)：本次构建产物；标定后请重新编译。
 
 ## 构建
 
@@ -17,7 +21,7 @@ Python 3.9+、电脑 GCC、MounRiver 配套 WCH GCC 8.2。仓库根目录执行�
 
 ```powershell
 python tools/test_host.py --cc C:/mingw64/bin/gcc.exe
-python tools/build.py --toolchain "E:/RISC-V/MounRiver_Studio2/resources/app/resources/win32/components/WCH/Toolchain/RISC-V Embedded GCC/bin"
+python tools/build.py --toolchain "E:/RISC-V/MounRiver_Studio3/resources/app/resources/win32/components/WCH/Toolchain/RISC-V Embedded GCC/bin"
 ```
 
 工具链路径按本机安装位置修改，也可设置 `WCH_TOOLCHAIN`。产物在 `build/target`，测试记录在 `build/host`。必须保持 `rv32imafcxw / ilp32f`，以匹配逐飞预编译配置库。

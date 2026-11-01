@@ -139,6 +139,11 @@ static void vision_and_path(void) {
         stripe(x, 6);
     f.frame_id++;
     CHECK(vision_line_process(&f, &p, &v));
+    CHECK(!v.overflow && v.path_count == 1 && v.boundary.port_count == 2);
+    /* Connect five stripes to the selected road: now fixed row capacity must reject. */
+    memset(pixels + (APP_HEIGHT - 1) * APP_WIDTH, 255, APP_WIDTH);
+    f.frame_id++;
+    CHECK(vision_line_process(&f, &p, &v));
     CHECK(v.overflow && v.confidence == 0);
     memset(pixels, 0, sizeof(pixels));
     stripe(90, 9);
@@ -158,6 +163,55 @@ static void vision_and_path(void) {
     f.frame_id++;
     CHECK(vision_line_process(&f, &p, &v));
     CHECK(v.split && v.path_count >= 2);
+    CHECK(v.boundary.port_count == 3);
+    /* Connected 90-degree right turn, no top exit. */
+    memset(pixels, 0, sizeof(pixels));
+    for (unsigned y = 60; y < APP_HEIGHT; y++)
+        for (unsigned x = 89; x < 100; x++)
+            pixels[y * APP_WIDTH + x] = 90;
+    for (unsigned y = 55; y < 66; y++)
+        for (unsigned x = 89; x < APP_WIDTH; x++)
+            pixels[y * APP_WIDTH + x] = 90;
+    f.frame_id++;
+    f.capture_ms += 100;
+    CHECK(vision_line_process(&f, &p, &v));
+    CHECK(v.boundary.valid && v.boundary.port_count == 2 && v.boundary.corner_count > 0 &&
+          v.confidence >= 40);
+    CHECK(v.paths[0].target_valid && v.paths[0].target_x == APP_WIDTH - 1);
+    path_control_reset(&s, 8);
+    d.state = TRACK_NORMAL;
+    CHECK(path_control_step(&s, &v, &d, &p, &request));
+    CHECK(request.direction_rad > 0 && request.omega_raw < 0 && request.distance_px > 0);
+    /* Four border intervals, one on each side: cross must keep the top exit. */
+    memset(pixels, 0, sizeof(pixels));
+    stripe(89, 11);
+    for (unsigned y = 55; y < 66; y++)
+        memset(pixels + y * APP_WIDTH, 255, APP_WIDTH);
+    f.frame_id++;
+    CHECK(vision_line_process(&f, &p, &v));
+    CHECK(v.cross && v.boundary.port_count == 4 && v.paths[0].target_y == 0);
+    /* Four intervals concentrated on the left: island candidate, not a cross. */
+    memset(pixels, 0, sizeof(pixels));
+    stripe(30, 10);
+    for (unsigned y = 30; y < 40; y++)
+        for (unsigned x = 0; x < 40; x++)
+            pixels[y * APP_WIDTH + x] = 255;
+    for (unsigned y = 60; y < 70; y++)
+        for (unsigned x = 0; x < 40; x++)
+            pixels[y * APP_WIDTH + x] = 255;
+    f.frame_id++;
+    CHECK(vision_line_process(&f, &p, &v));
+    CHECK(v.boundary.valid && v.boundary.port_count == 4 && v.boundary.island_candidate &&
+          !v.cross && v.split);
+    /* Low dynamic range and uniform frames must never become a valid route. */
+    memset(pixels, 80, sizeof(pixels));
+    stripe(89, 11);
+    for (unsigned i = 0; i < sizeof(pixels); i++)
+        if (pixels[i] == 255)
+            pixels[i] = 81;
+    f.frame_id++;
+    CHECK(vision_line_process(&f, &p, &v));
+    CHECK(v.confidence == 0);
     groups++;
 }
 static VisionFeatures synthetic(uint32_t id, uint32_t ms, bool split) {

@@ -53,13 +53,32 @@ typedef struct {
     uint32_t valid_rows;
     uint8_t count;
     float trend;
+    uint8_t target_x, target_y;
+    bool target_valid;
 } PathCandidate;
+
+typedef struct {
+    uint8_t x, y;
+} VisionPoint;
+typedef struct {
+    VisionPoint midpoint;
+    uint8_t sides;
+} BorderPort;
+typedef struct {
+    BorderPort ports[8];
+    VisionPoint corners[16];
+    uint8_t corner_side[16]; /* 0: image left half, 1: image right half */
+    uint8_t port_count, corner_count, threshold;
+    uint16_t contour_steps;
+    bool valid, overflow, island_candidate;
+} BoundaryFeatures;
 typedef struct {
     uint32_t frame_id, capture_ms;
     RowRuns rows[APP_ROWS];
     PathCandidate paths[APP_PATHS];
     uint8_t path_count, confidence;
     bool cross, split, merge, overflow;
+    BoundaryFeatures boundary;
 } VisionFeatures;
 typedef struct {
     const uint8_t *pixels;
@@ -81,6 +100,7 @@ typedef struct {
     uint32_t frame_id, capture_ms, session_id;
     TrackState state;
     float speed_cap_mps, omega_raw;
+    float direction_rad, distance_px;
     uint8_t confidence;
     bool valid, stop_requested;
 } MotionRequest;
