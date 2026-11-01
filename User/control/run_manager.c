@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_runtime.h"
+#include "control_api.h"
 bool run_manager_step(RunMode *m, StopReason *reason, uint32_t r, bool armable, bool fresh,
                       uint32_t *session) {
     bool reset = false;

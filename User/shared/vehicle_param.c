@@ -1,41 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "control_tuning.h"
+#include "core_math.h"
+#include "vision_tuning.h"
 #include <math.h>
 #include <string.h>
 void param_defaults(AppParam *p) {
     memset(p, 0, sizeof(*p));
-    p->encoder_sign[0] = 1;
-    p->encoder_sign[1] = 1;
-    p->encoder_tau_s = .025f;
-    p->kp_left = .2f;
-    p->kp_right = .2f;
-    p->ki_left = .4f;
-    p->ki_right = .4f;
-    p->integral_limit = .2f;
-    p->duty_limit = .25f;
-    p->speed_limit_mps = .4f;
-    p->accel_mps2 = .3f;
-    p->decel_mps2 = .6f;
-    p->inner_ratio = .15f;
-    p->visual_kp = 1.5f;
-    p->visual_kd = .05f;
-    p->visual_tau_s = .05f;
-    p->center_x_px = 93.5f;
-    p->speed_normal = .2f;
-    p->speed_corner = .12f;
-    p->speed_element = .1f;
-    p->soft_timeout_ms = 150;
-    p->hard_timeout_ms = 600;
-    p->element_timeout_s = 20;
-    p->confirm_ms = 80;
-    p->release_ms = 120;
-    p->clear_distance_m = .12f;
-    p->island_min_distance_m = .5f;
-    p->island_min_turn_rad = 5.4f;
-    p->width_near_px = 20;
-    p->width_far_px = 5;
-    p->row_jump_px = 28;
-    p->threshold = 130;
+    vision_param_defaults(p);
+    control_param_defaults(p);
 }
 bool param_valid(const AppParam *p) {
     if (!p)

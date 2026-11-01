@@ -41,15 +41,13 @@ void app_main_poll(void) {
     }
     FrameView frame;
     if (camera_frame_acquire(&frame)) {
-        if (vision_line_process(&frame, &g_app_param, &features)) {
-            TrackDecision decision;
-            if (track_element_step(&track, &features, &g_app_param, &snapshot.feedback,
-                                   snapshot.mode == RUN_RUNNING, false, 0, &decision)) {
-                MotionRequest request;
-                (void)path_control_step(&path, &features, &decision, &g_app_param, &request);
-                app_exchange_publish_motion(&request);
-            }
-        }
+        VisionOutput observation;
+        (void)vision_pipeline_step(&track, &frame, &g_app_param, &snapshot.feedback,
+                                   snapshot.mode == RUN_RUNNING, snapshot.session_id,
+                                   CAL_FULL_RACE != 0, &features, &observation);
+        MotionRequest request;
+        (void)control_path_step(&path, &observation, &g_app_param, &request);
+        app_exchange_publish_motion(&request);
         debug_view_frame(&frame, &snapshot, &features);
         camera_frame_release(frame.frame_id);
     }

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "control_api.h"
 #include <math.h>
 #include <string.h>
 bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float omega, float dt,

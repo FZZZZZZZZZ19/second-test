@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "core_math.h"
 #include <math.h>
 float app_clamp(float x, float lo, float hi) {
     return x < lo ? lo : (x > hi ? hi : x);

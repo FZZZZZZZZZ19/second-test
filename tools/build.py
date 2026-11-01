@@ -24,18 +24,18 @@ def main():
         parser.error('Set WCH_TOOLCHAIN or --toolchain to the WCH GCC 8.2 toolchain bin directory')
     bin_dir = Path(gcc).parent
     suffix = '.exe' if os.name == 'nt' else ''
-    firmware_version = re.search(r'#define APP_VERSION "([^"]+)"', (ROOT / 'User/app_config.h').read_text()).group(1)
+    firmware_version = re.search(r'#define APP_VERSION "([^"]+)"', (ROOT / 'User/shared/app_config.h').read_text()).group(1)
     stem = 'second-test-v' + '.'.join(firmware_version.split('.')[:2])
     out = ROOT / 'build' / 'target'
     out.mkdir(parents=True, exist_ok=True)
     for name in [stem + '.elf', stem + '.hex', stem + '.bin', 'build-report.json']:
         (out / name).unlink(missing_ok=True)
-    inc = ['User', 'Core', 'Debug', 'Peripheral/inc', 'zf_common', 'zf_driver', 'zf_device', 'zf_components']
+    inc = ['User', *['User/' + d for d in ['vision', 'control', 'board', 'shared', 'integration', 'config']], 'Core', 'Debug', 'Peripheral/inc', 'zf_common', 'zf_driver', 'zf_device', 'zf_components']
     common = ['-march=rv32imafcxw', '-mabi=ilp32f', '-msmall-data-limit=8',
               '-Os', '-g3', '-ffunction-sections', '-fdata-sections', '-fno-common']
     sources = []
     for folder in ['User', 'Core', 'Debug', 'Peripheral/src', 'zf_common', 'zf_driver', 'zf_device', 'zf_components']:
-        sources += sorted((ROOT / folder).glob('*.c'))
+        sources += sorted((ROOT / folder).rglob('*.c') if folder == 'User' else (ROOT / folder).glob('*.c'))
     sources += [ROOT / 'Startup/startup_ch32v30x_D8C.S']
 
     def compile_one(src):
@@ -45,7 +45,7 @@ def main():
         flags = common + [flag for item in inc for flag in ['-I', str(ROOT / item)]]
         if src.suffix == '.c':
             flags += ['-std=gnu11', '-Wall', '-Wextra']
-            if src.parent.name == 'User' and src.name.startswith(('main.c', 'app_', 'board_', 'camera_frame', 'debug_view', 'motor', 'motion_plan', 'param_store', 'path_control', 'run_manager', 'side_encoder', 'speed_control', 'track_element', 'vehicle_', 'vision_')):
+            if 'User' in src.relative_to(ROOT).parts and src.name.startswith(('main.c', 'app_', 'board_', 'camera_frame', 'debug_view', 'motor', 'motion_plan', 'param_store', 'path_control', 'run_manager', 'side_encoder', 'speed_control', 'track_element', 'vehicle_', 'vision_')):
                 flags += ['-Werror']
         cmd = [gcc, *flags, '-c', str(src), '-o', str(obj)]
         result = subprocess.run(cmd, capture_output=True, text=True, errors='replace')

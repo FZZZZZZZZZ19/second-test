@@ -1,0 +1,36 @@
+{
+  "compiler": "gcc.exe (x86_64-posix-seh-rev0, Built by MinGW-Builds project) 13.2.0",
+  "modules": [
+    "app_math",
+    "vehicle_param",
+    "speed_control",
+    "motion_plan",
+    "vision_line",
+    "vision_boundary",
+    "vision_target",
+    "vision_pipeline",
+    "vehicle_progress",
+    "track_element",
+    "path_control",
+    "run_manager"
+  ],
+  "results": [
+    {
+      "profile": "default",
+      "result": "PASS: 5 groups, 138420 assertions"
+    },
+    {
+      "profile": "configured_route",
+      "result": "PASS: 5 groups, 138424 assertions"
+    },
+    {
+      "profile": "standalone_vision",
+      "result": "PASS: standalone vision, no control or board objects linked"
+    },
+    {
+      "profile": "standalone_control",
+      "result": "PASS: standalone control, synthetic VisionOutput, no vision or board objects linked"
+    }
+  ],
+  "status": "PASS"
+}

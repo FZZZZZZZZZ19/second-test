@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "vision_api.h"
 #include <math.h>
 #include <string.h>
 /* One bit per pixel, no second grayscale frame. Non-reentrant: main-loop owner. */

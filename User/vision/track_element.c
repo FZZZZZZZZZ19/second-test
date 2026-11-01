@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
 #include "track_profile.h"
+#include "vision_api.h"
 #include <math.h>
 #include <string.h>
 static const uint8_t route[] = APP_ROUTE_SEQUENCE;

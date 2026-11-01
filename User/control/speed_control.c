@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "control_api.h"
 #include <math.h>
 bool speed_pi_step(SpeedPiState *s, float target, float measured, float dt, float kp, float ki,
                    float ff, float ilim, float limit, float *out) {

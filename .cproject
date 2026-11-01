@@ -65,6 +65,12 @@
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Debug}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Core}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/vision}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/control}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/board}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/shared}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/integration}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/User/config}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Peripheral/inc}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/zf_common}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/zf_driver}&quot;"/>

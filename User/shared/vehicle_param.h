@@ -9,15 +9,15 @@
     X(wheel_left_m)                                                                                \
     X(wheel_right_m)                                                                               \
     X(track_m)                                                                                     \
-    X(effective_track_m) X(axle_m) X(counts_left) X(counts_right) X(encoder_tau_s) X(kp_left)      \
-        X(ki_left) X(kp_right) X(ki_right) X(ff_left) X(ff_right) X(integral_limit) X(duty_limit)  \
-            X(speed_limit_mps) X(accel_mps2) X(decel_mps2) X(inner_ratio) X(visual_kp)             \
-                X(visual_kd) X(visual_tau_s) X(center_x_px) X(speed_normal) X(speed_corner)        \
-                    X(speed_element) X(soft_timeout_ms) X(hard_timeout_ms) X(element_timeout_s)    \
-                        X(clear_distance_m) X(island_min_distance_m) X(island_min_turn_rad)        \
-                            X(camera_forward_m) X(row_distance_near_m) X(row_distance_far_m)       \
-                                X(width_near_px) X(width_far_px) X(row_jump_px) X(confirm_ms)      \
-                                    X(release_ms)
+    X(effective_track_m)                                                                           \
+    X(axle_m) X(counts_left) X(counts_right) X(encoder_tau_s) X(kp_left) X(ki_left) X(kp_right)    \
+        X(ki_right) X(ff_left) X(ff_right) X(integral_limit) X(duty_limit) X(speed_limit_mps)      \
+            X(accel_mps2) X(decel_mps2) X(inner_ratio) X(visual_kp) X(visual_kd) X(visual_tau_s)   \
+                X(center_x_px) X(speed_normal) X(speed_corner) X(speed_element) X(soft_timeout_ms) \
+                    X(hard_timeout_ms) X(element_timeout_s) X(clear_distance_m)                    \
+                        X(island_min_distance_m) X(island_min_turn_rad) X(camera_forward_m)        \
+                            X(row_distance_near_m) X(row_distance_far_m) X(width_near_px)          \
+                                X(width_far_px) X(row_jump_px) X(confirm_ms) X(release_ms)
 typedef struct {
 #define DECL_FIELD(n) float n;
     APP_FLOAT_FIELDS(DECL_FIELD)

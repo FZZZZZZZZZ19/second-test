@@ -1,6 +1,6 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.1.0"
+#define APP_VERSION "1.2.0"
 #define APP_CONTROL_PERIOD_MS 5u
 #define APP_WIDTH 188u
 #define APP_HEIGHT 120u

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include "app_core.h"
+#include "vision_api.h"
 #include <math.h>
 bool vehicle_progress_rear_clear(const ElementAnchor *a, const AppParam *p, const SideFeedback *fb,
                                  bool stable, uint32_t now) {

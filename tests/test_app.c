@@ -5,6 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+static bool path_control_step(PathControlState *s, const VisionFeatures *f, const TrackDecision *d,
+                              const AppParam *p, MotionRequest *out) {
+    VisionOutput v;
+    (void)vision_target_step(f, d, p, &v);
+    v.session_id = s->session;
+    return control_path_step(s, &v, p, out);
+}
 static unsigned assertions, groups;
 #define CHECK(x)                                                                                   \
     do {                                                                                           \
