@@ -15,7 +15,7 @@ def main():
     out = ROOT / 'build/host'
     out.mkdir(parents=True, exist_ok=True)
     names = ['app_math', 'vehicle_param', 'speed_control', 'motion_plan', 'vision_line', 'vision_boundary', 'vision_target', 'vision_pipeline',
-             'vehicle_progress', 'track_element', 'path_control', 'run_manager']
+             'vehicle_progress', 'track_element', 'path_control', 'yaw_control', 'run_manager']
     executable = out / 'test_app.exe'
     command = [args.cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2',
                *[arg for folder in ['User', *['User/'+d for d in ['vision', 'control', 'board', 'shared', 'integration', 'config']]] for arg in ['-I',str(ROOT/folder)]], str(ROOT / 'tests/test_app.c'),
@@ -28,7 +28,8 @@ def main():
         print(label + ': ' + result.stdout.strip())
     # Link each domain alone: catches hidden calls across the algorithm boundary.
     for label, sources in [('vision', ['vision_line','vision_boundary','vision_target','vision_pipeline','track_element','vehicle_progress','app_math']),
-                           ('control', ['path_control','speed_control','motion_plan','app_math','vehicle_param'])]:
+                           ('control', ['path_control','yaw_control','speed_control','motion_plan','app_math','vehicle_param']),
+                           ('imu_runtime', ['yaw_control','speed_control','motion_plan','app_math','vehicle_param','run_manager'])]:
         executable = out / ('test_' + label + '.exe')
         cmd = [args.cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2',
                *[arg for folder in ['User', *['User/'+d for d in ['vision','control','board','shared','integration','config']]] for arg in ['-I',str(ROOT/folder)]],

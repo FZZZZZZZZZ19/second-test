@@ -1,14 +1,14 @@
-# second-test · CH32V307 智能车 V1.3
+# second-test · CH32V307 智能车 V1.4
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
-V1.3 主机回归测试覆盖生产算法源码；本次未运行 WCH 目标编译，未生成新的 ELF、HEX、BIN。历史 release/v1.2 固件不是当前源码。**尚未上板验证，默认实测参数为空，保持静态调试并禁止发车。** 完整比赛路线还需现场配置和验证。
+V1.4 主机回归和 WCH 目标编译已通过。实车标定、I²C 通信、完整 ISR 耗时和内环增益待上板验证。默认实测参数为空，保持静态调试并禁止发车。
 
 ## 视觉与电控分层
 
 视觉实现放在 `User/vision`，电控算法放在 `User/control`，通过 `User/shared/vision_control.h` 的 `VisionOutput` 连接。调参分别改 `User/config/vision_tuning.h` 和 `control_tuning.h`。详见[V1.2分层、替换和调参说明](docs/V1.2视觉电控分层与调参.md)。
 
-## 文档阅读顺序（当前V1.3）
+## 文档阅读顺序（当前V1.4）
 
 1. [电控算法原理](docs/智能车电控算法开发文档.md)：先理解车怎么转，跟完一个右转例子。
 2. [项目结构、函数调度、主流程与参数](docs/项目结构与主流程参数说明.md)：术语白话解释、文件位置和调参。
@@ -43,8 +43,8 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 上电 UART3 PB10/PB11 输出115200日志；屏幕显示静态状态，五向右键看二值图。先填 `User/config/vehicle_calibration.h` 的实测数据，再调 PI 与视觉参数。中键准备、KEY1发车、KEY2停车；全部标定条件未通过时不能准备。运行中没有远程控制或串口改参。
 
-正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。IMU 和电流闭环未启用；实际驱动板没有接回电流/故障反馈。
+正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。ICM20602 上电需完成静止零偏校准。驱动板的电流/故障信号未接回主板。
 
 来源和第三方修改见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [LICENSES](LICENSES/README.md)。
 
-V1.3 的米制坐标、标定、符号、调参和验证边界见 [V1.3说明](docs/V1.3米制路径控制.md)。本次只做主机测试，不宣称旧发布固件包含本次改动。
+V1.3 的米制坐标、标定、符号、调参和验证边界见 [V1.3说明](docs/V1.3米制路径控制.md)。V1.4 的接线、角速度内环和上板检查见 [ICM20602 说明](docs/V1.4陀螺仪角速度内环.md)。

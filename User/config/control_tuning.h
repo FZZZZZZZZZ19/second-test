@@ -2,6 +2,15 @@
 #define CONTROL_TUNING_H
 #include "vehicle_param.h"
 static inline void control_param_defaults(AppParam *p) {
+    p->gyro_sign = 1;
+    p->yaw_kp = 0.0f; /* tune only after sign/timing validation */
+    p->yaw_ki = 0.0f;
+    p->yaw_i_limit = .5f; /* rad/s */
+    p->yaw_output_limit = 5.0f; /* rad/s, still subject to motion_plan limits */
+    p->gyro_timeout_ms = 20;
+    p->gyro_still_radps = .08f;
+    p->gyro_accel_tol_g = .1f;
+    p->gyro_noise_radps = .01f;
     p->encoder_sign[0] = 1;
     p->encoder_sign[1] = 1;
     p->encoder_tau_s = .025f;

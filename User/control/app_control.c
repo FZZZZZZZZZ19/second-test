@@ -2,13 +2,22 @@
 #include "app_runtime.h"
 #include "track_profile.h"
 #include "vehicle_calibration.h"
+#include "yaw_control.h"
 #include <math.h>
 #include <string.h>
 static ControlSnapshot status;
 static MotionRequest good;
 static SpeedPiState pi[2];
 static MotionPlanState plan;
-static uint32_t previous_us;
+static uint32_t previous_us, imu_stamp;
+static bool imu_online, imu_seen;
+static GyroCalibration calibration;
+static YawState yaw;
+void app_control_imu_ready(bool ok) {
+    imu_online = ok;
+    imu_stamp = board_time_ms();
+}
+
 static volatile bool initialized, camera_ok;
 void app_control_camera_ready(bool ok) {
     BoardIrqToken t = board_irq_save();
@@ -22,11 +31,16 @@ void app_control_init(void) {
     memset(&good, 0, sizeof(good));
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
+    memset(&calibration, 0, sizeof(calibration));
+    memset(&yaw, 0, sizeof(yaw));
+    imu_online = false;
+    imu_seen = false;
     previous_us = board_time_us();
     initialized = true;
     app_exchange_publish_control(&status);
 }
 static void fault(StopReason r) {
+    yaw.integral = 0;
     status.mode = RUN_FAULT;
     status.reason = r;
     motor_brake_zero();
@@ -53,6 +67,43 @@ void app_control_tick_isr(void) {
         dt = .005f;
     }
     (void)side_encoder_sample(dt, now, &status.feedback);
+    status.omega_target = good.valid ? good.omega_raw : 0;
+    float imu_timeout = g_app_param.gyro_timeout_ms;
+    if (!isfinite(imu_timeout) || imu_timeout < 10 || imu_timeout > 50)
+        imu_online = false;
+    if (imu_online) {
+        float z = 0, norm = 0, accel = 0;
+        uint32_t read_start = board_time_us();
+        int result = board_imu_read(!calibration.ready, &z, &norm, &accel);
+        status.imu_read_us = board_time_us() - read_start;
+        if (status.imu_read_us > status.imu_max_us)
+            status.imu_max_us = status.imu_read_us;
+        if (result < 0 || status.imu_read_us >= 2000)
+            imu_online = false;
+        else if (result > 0) {
+            imu_seen = true;
+            imu_stamp = now;
+            if (!calibration.ready)
+                (void)gyro_calibrate_step(&calibration, &g_app_param, z, norm, accel,
+                                          status.mode == RUN_STATIC_DEBUG &&
+                                              status.feedback.delta[0] == 0 &&
+                                              status.feedback.delta[1] == 0,
+                                          now);
+            if (calibration.failed ||
+                !gyro_measure(z, calibration.bias, g_app_param.gyro_sign, &status.omega_measured))
+                imu_online = false;
+        }
+        if ((uint32_t)(now - imu_stamp) > (uint32_t)imu_timeout)
+            imu_online = false;
+    }
+    status.imu_ok = imu_online && imu_seen;
+    status.imu_calibrated = calibration.ready;
+    status.imu_cal_samples = (uint16_t)calibration.count;
+    status.gyro_bias = calibration.bias;
+    status.config_ok = status.config_ok && status.imu_ok && calibration.ready;
+    if (!imu_online &&
+        (status.mode == RUN_READY || status.mode == RUN_RUNNING || status.mode == RUN_STOPPING))
+        fault(STOP_IMU);
     MotionRequest incoming;
     app_exchange_read_motion(&incoming);
     if (incoming.session_id == status.session_id && incoming.valid && incoming.confidence >= 40) {
@@ -72,6 +123,7 @@ void app_control_tick_isr(void) {
                              fabsf(status.feedback.speed_mps[0]) < .03f &&
                              fabsf(status.feedback.speed_mps[1]) < .03f,
                          fresh, &status.session_id)) {
+        yaw.integral = 0;
         memset(pi, 0, sizeof(pi));
         memset(&plan, 0, sizeof(plan));
         if (status.mode == RUN_READY || status.mode == RUN_STATIC_DEBUG)
@@ -94,8 +146,12 @@ void app_control_tick_isr(void) {
                 speed = 0;
                 stopping = true;
             }
-            bool ok =
-                motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping, &status.targets);
+            status.omega_target = omega;
+            bool ok = yaw_control_step(&yaw, &g_app_param, omega, status.omega_measured, dt,
+                                       stopping, &omega);
+            if (ok)
+                ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping,
+                                      &status.targets);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
@@ -123,9 +179,13 @@ void app_control_tick_isr(void) {
     } else {
         motor_brake_zero();
         status.duty[0] = status.duty[1] = 0;
+        yaw.integral = 0;
         memset(pi, 0, sizeof(pi));
         memset(&plan, 0, sizeof(plan));
     }
+    uint32_t tick_us = board_time_us() - start;
+    if (tick_us > status.tick_max_us)
+        status.tick_max_us = tick_us;
     if (board_time_us() - start > 4000) {
         status.overruns++;
         if (status.overruns >= 3 && status.mode == RUN_RUNNING)

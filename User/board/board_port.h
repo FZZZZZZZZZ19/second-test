@@ -18,4 +18,6 @@ bool board_camera_hold_after_frame_isr(void);
 bool board_camera_restart_full_frame(void);
 void board_controls_init(void);
 uint8_t board_key_code(void);
+bool board_imu_init(void);
+int board_imu_read(bool calibration, float *z, float *norm, float *accel);
 #endif

@@ -37,7 +37,8 @@ typedef enum {
     STOP_NONFINITE,
     STOP_TIMING,
     STOP_TRACK,
-    STOP_CONFIG
+    STOP_CONFIG,
+    STOP_IMU
 } StopReason;
 typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8 } AppRequest;
 typedef struct {
@@ -113,6 +114,10 @@ typedef struct {
     float duty[2];
     uint32_t vision_age_ms, overruns;
     bool camera_ok, config_ok;
+    bool imu_ok, imu_calibrated;
+    uint16_t imu_cal_samples;
+    float omega_target, omega_measured, gyro_bias;
+    uint32_t imu_read_us, imu_max_us, tick_max_us;
 } ControlSnapshot;
 typedef struct {
     TrackState state;

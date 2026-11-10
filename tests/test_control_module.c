@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include "test_yaw.h"
 int main(void) {
+    test_yaw();
     AppParam p = {0};
     control_param_defaults(&p);
     PathControlState state;

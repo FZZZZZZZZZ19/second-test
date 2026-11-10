@@ -61,9 +61,9 @@ static void parameters(void) {
     CHECK(sequence == 0xffffffffu);
     NEAR(q.counts_left, p.counts_left);
     /* A valid CRC cannot make the previous schema load as metric gains. */
-    uint8_t old[APP_PARAM_RECORD_BYTES]; memcpy(old,data,sizeof old); old[4]=1;
-    uint32_t crc=app_crc32(old,248);
-    for(unsigned j=0;j<4;j++)old[248+j]=(uint8_t)(crc>>(8*j));
+    uint8_t old[APP_PARAM_RECORD_BYTES]; memcpy(old,data,sizeof old); old[4]=2;
+    uint32_t crc=app_crc32(old,APP_PARAM_CRC_OFFSET);
+    for(unsigned j=0;j<4;j++)old[APP_PARAM_CRC_OFFSET+j]=(uint8_t)(crc>>(8*j));
     CHECK(!param_decode(old,&q,&sequence));
     for (unsigned i = 0; i < APP_PARAM_RECORD_BYTES; i++) {
         data[i] ^= 1;

@@ -32,7 +32,10 @@ bool app_boot_init(void) {
     g_app_param.flags = (CAL_CAPTURE_VALIDATED ? 2u : 0u) | (CAL_FULL_RACE ? 1u : 0u);
     (void)param_store_load(&g_app_param);
     (void)side_encoder_init();
+    bool imu_ok = board_imu_init();
+    board_clock_init(); /* Rebase after blocking vendor initialization, before TIM6 starts. */
     app_control_init();
+    app_control_imu_ready(imu_ok);
     pit_ms_init(TIM6_PIT, APP_CONTROL_PERIOD_MS);
     bool ok = camera_frame_init();
     app_control_camera_ready(ok);

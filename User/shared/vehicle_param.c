@@ -17,6 +17,12 @@ bool param_valid(const AppParam *p) {
         return false;
     APP_FLOAT_FIELDS(CHECK_FINITE)
 #undef CHECK_FINITE
+    if ((p->gyro_sign != 1 && p->gyro_sign != -1) || p->yaw_kp < 0 || p->yaw_ki < 0 ||
+        p->yaw_i_limit < 0 || p->yaw_output_limit <= 0 || p->yaw_output_limit > 35 ||
+        p->gyro_timeout_ms < 10 || p->gyro_timeout_ms > 50 || p->gyro_still_radps <= 0 ||
+        p->gyro_still_radps > .2f || p->gyro_accel_tol_g <= 0 || p->gyro_accel_tol_g > .2f ||
+        p->gyro_noise_radps <= 0 || p->gyro_noise_radps > .05f)
+        return false;
     if (p->wheel_left_m < .01f || p->wheel_left_m > .3f || p->wheel_right_m < .01f ||
         p->wheel_right_m > .3f)
         return false;
@@ -82,7 +88,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 2);
+    put32(out + 4, 3);
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -99,16 +105,16 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     }
     APP_FLOAT_FIELDS(ENCODE)
 #undef ENCODE
-    if (offset > 248)
+    if (offset > APP_PARAM_CRC_OFFSET)
         return false;
     put32(out + 12, n);
-    put32(out + 248, app_crc32(out, 248));
-    put32(out + 252, 0x434F4D54u);
+    put32(out + APP_PARAM_CRC_OFFSET, app_crc32(out, APP_PARAM_CRC_OFFSET));
+    put32(out + (APP_PARAM_RECORD_BYTES - 4u), 0x434F4D54u);
     return true;
 }
 bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_t *seq) {
-    if (!in || !p || !seq || get32(in) != 0x53545631u || get32(in + 4) != 2 ||
-        get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
+    if (!in || !p || !seq || get32(in) != 0x53545631u || get32(in + 4) != 3 ||
+        get32(in + (APP_PARAM_RECORD_BYTES - 4u)) != 0x434F4D54u || get32(in + APP_PARAM_CRC_OFFSET) != app_crc32(in, APP_PARAM_CRC_OFFSET))
         return false;
     AppParam candidate;
     memset(&candidate, 0, sizeof(candidate));

@@ -6,6 +6,7 @@ extern AppParam g_app_param;
 bool app_boot_init(void);
 void app_main_poll(void);
 void app_control_init(void);
+void app_control_imu_ready(bool ok);
 void app_control_tick_isr(void);
 void app_control_camera_ready(bool ok);
 void app_exchange_publish_motion(const MotionRequest *r);

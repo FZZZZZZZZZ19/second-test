@@ -18,7 +18,7 @@ void debug_view_init(void) {
 static void line(unsigned row, const char *message) {
     char padded[27];
     snprintf(padded, sizeof(padded), "%-25.25s", message);
-    tft180_show_string(0, (uint16_t)(row * 16), padded);
+    tft180_show_string(0, (uint16_t)(row * 12), padded);
 }
 void debug_view_poll(const ControlSnapshot *s) {
     uint32_t now = board_time_ms();
@@ -70,10 +70,23 @@ void debug_view_poll(const ControlSnapshot *s) {
         line(4, text);
         snprintf(text, sizeof(text), "age %lu ms", (unsigned long)s->vision_age_ms);
         line(5, text);
-        line(6, "MID ready K1 go K2 stop");
+        snprintf(text, sizeof(text), "omega_target %ld mrad/s", (long)(s->omega_target * 1000));
+        line(6, text);
+        snprintf(text, sizeof(text), "omega_measured %ld", (long)(s->omega_measured * 1000));
+        line(7, text);
+        snprintf(text, sizeof(text), "IMU %u CAL %u/800", s->imu_ok, s->imu_cal_samples);
+        line(8, text);
+        snprintf(text, sizeof(text), "us I%lu T%lu", (unsigned long)s->imu_max_us,
+                 (unsigned long)s->tick_max_us);
+        line(9, text);
     }
     if (s->mode != RUN_RUNNING && s->mode != RUN_STOPPING && now - last_log >= 2000) {
         last_log = now;
+        printf("imu=%u cal=%u n=%u bias_mrad=%ld target_mrad=%ld measured_mrad=%ld imu_max_us=%lu "
+               "tick_max_us=%lu\r\n",
+               s->imu_ok, s->imu_calibrated, s->imu_cal_samples, (long)(s->gyro_bias * 1000),
+               (long)(s->omega_target * 1000), (long)(s->omega_measured * 1000),
+               (unsigned long)s->imu_max_us, (unsigned long)s->tick_max_us);
         printf("mode=%u camera=%u cal=%u dL=%ld dR=%ld\r\n", (unsigned)s->mode, s->camera_ok,
                s->config_ok, (long)s->feedback.delta[0], (long)s->feedback.delta[1]);
     }
