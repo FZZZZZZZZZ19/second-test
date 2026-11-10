@@ -4,7 +4,12 @@
 
 V1.4 主机回归和 WCH 目标编译已通过。实车标定、I²C 通信、完整 ISR 耗时和内环增益待上板验证。默认实测参数为空，保持静态调试并禁止发车。
 
-## 视觉与电控分层
+## 从白线到车轮
+
+1. **V1.3 米制外环**。视觉把选中路径的近、中、远三点投影到地面，发布横向偏差、前向距离和曲率。外环用曲率前馈与横向偏差 PD 生成 `omega_target`。缺少实测地面标定时，视觉结果无效。
+2. **V1.4 角速度内环**。TIM6 每 5 ms 读取 ICM20602，用实测角速度修正目标，再由运动规划生成左右侧速度，轮速 PI 输出 PWM。目标和测量均为左转正。正常停车和视觉软超时减速时旁路角速度内环。
+
+
 
 视觉实现放在 `User/vision`，电控算法放在 `User/control`，通过 `User/shared/vision_control.h` 的 `VisionOutput` 连接。调参分别改 `User/config/vision_tuning.h` 和 `control_tuning.h`。详见[V1.2分层、替换和调参说明](docs/V1.2视觉电控分层与调参.md)。
 
@@ -43,7 +48,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 上电 UART3 PB10/PB11 输出115200日志；屏幕显示静态状态，五向右键看二值图。先填 `User/config/vehicle_calibration.h` 的实测数据，再调 PI 与视觉参数。中键准备、KEY1发车、KEY2停车；全部标定条件未通过时不能准备。运行中没有远程控制或串口改参。
 
-正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。ICM20602 上电需完成静止零偏校准。驱动板的电流/故障信号未接回主板。
+正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。ICM20602 接 H2 的 PB3/SCL、PB5/SDA 和 GND，按模块 3.3 V 接口核对供电及上拉，AD0 置高使地址为 `0x69`。保持静止，等待屏幕 `CAL 800/800`。然后手动左转确认 `omega_measured` 为正，并实测完整 ISR 最坏耗时低于 4 ms。参数格式升级为 schema 3，旧记录会被拒绝，升级前备份实测参数。驱动板的电流/故障信号未接回主板。
 
 来源和第三方修改见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [LICENSES](LICENSES/README.md)。
 
