@@ -9,5 +9,7 @@ typedef struct {
     TrackState state;
     uint8_t confidence;
     bool valid, stop_requested, reset_derivative;
+    /* Vehicle ground coordinates: right positive, forward positive; curvature right positive. */
+    float lateral_m, forward_m, curvature;
 } VisionOutput;
 #endif

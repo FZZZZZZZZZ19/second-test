@@ -10,6 +10,16 @@
 #define CAL_ROW_NEAR_M 0.0f
 #define CAL_ROW_FAR_M 0.0f
 #define CAL_CAMERA_FORWARD_M 0.0f
+
+/* Pixel (x,y) -> ground (right,forward), homogeneous denominator h6*x+h7*y+1. */
+#define CAL_GROUND_H0 0.0f
+#define CAL_GROUND_H1 0.0f
+#define CAL_GROUND_H2 0.0f
+#define CAL_GROUND_H3 0.0f
+#define CAL_GROUND_H4 0.0f
+#define CAL_GROUND_H5 0.0f
+#define CAL_GROUND_H6 0.0f
+#define CAL_GROUND_H7 0.0f
 #define CAL_MASK 0u
 #define CAL_CAPTURE_VALIDATED 0
 #define CAL_FULL_RACE 0

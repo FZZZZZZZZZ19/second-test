@@ -20,6 +20,14 @@ bool app_boot_init(void) {
     g_app_param.row_distance_near_m = CAL_ROW_NEAR_M;
     g_app_param.row_distance_far_m = CAL_ROW_FAR_M;
     g_app_param.camera_forward_m = CAL_CAMERA_FORWARD_M;
+    g_app_param.ground_h0 = CAL_GROUND_H0;
+    g_app_param.ground_h1 = CAL_GROUND_H1;
+    g_app_param.ground_h2 = CAL_GROUND_H2;
+    g_app_param.ground_h3 = CAL_GROUND_H3;
+    g_app_param.ground_h4 = CAL_GROUND_H4;
+    g_app_param.ground_h5 = CAL_GROUND_H5;
+    g_app_param.ground_h6 = CAL_GROUND_H6;
+    g_app_param.ground_h7 = CAL_GROUND_H7;
     g_app_param.calibration_mask = CAL_MASK;
     g_app_param.flags = (CAL_CAPTURE_VALIDATED ? 2u : 0u) | (CAL_FULL_RACE ? 1u : 0u);
     (void)param_store_load(&g_app_param);

@@ -38,7 +38,7 @@ bool param_valid(const AppParam *p) {
         return false;
     if (p->accel_mps2 <= 0 || p->decel_mps2 <= 0 || p->inner_ratio < 0 || p->inner_ratio >= 1)
         return false;
-    if (p->visual_kp < 0 || p->visual_kd < 0 || p->visual_tau_s < 0 || p->center_x_px < 0 ||
+    if (p->lateral_kp < 0 || p->lateral_kd < 0 || p->lateral_tau_s < 0 || p->center_x_px < 0 ||
         p->center_x_px >= APP_WIDTH)
         return false;
     if (p->speed_normal < 0 || p->speed_corner < 0 || p->speed_element < 0 ||
@@ -82,7 +82,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 1);
+    put32(out + 4, 2);
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -107,7 +107,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     return true;
 }
 bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_t *seq) {
-    if (!in || !p || !seq || get32(in) != 0x53545631u || get32(in + 4) != 1 ||
+    if (!in || !p || !seq || get32(in) != 0x53545631u || get32(in + 4) != 2 ||
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     AppParam candidate;

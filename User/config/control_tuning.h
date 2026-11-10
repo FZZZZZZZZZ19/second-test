@@ -15,9 +15,9 @@ static inline void control_param_defaults(AppParam *p) {
     p->accel_mps2 = .3f;
     p->decel_mps2 = .6f;
     p->inner_ratio = .15f;
-    p->visual_kp = 1.5f;
-    p->visual_kd = .05f;
-    p->visual_tau_s = .05f;
+    p->lateral_kp = 0.0f; /* rad/(s*m), tune on vehicle */
+    p->lateral_kd = 0.0f; /* rad/m, tune on vehicle */
+    p->lateral_tau_s = .05f;
     p->speed_normal = .2f;
     p->speed_corner = .12f;
     p->speed_element = .1f;

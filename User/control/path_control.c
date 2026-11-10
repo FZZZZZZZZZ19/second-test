@@ -18,23 +18,26 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->confidence = v->confidence;
     o->stop_requested = v->stop_requested;
     if (!v->valid || v->session_id != s->session || v->frame_id == s->previous_frame ||
-        !isfinite(v->direction_rad) || !isfinite(v->distance_px) || v->distance_px <= 0 ||
+        !isfinite(v->lateral_m) || !isfinite(v->forward_m) || v->forward_m <= 0 ||
+        !isfinite(v->curvature) || !isfinite(p->lateral_kp) || p->lateral_kp < 0 ||
+        !isfinite(p->lateral_kd) || p->lateral_kd < 0 ||
+        !isfinite(p->lateral_tau_s) || p->lateral_tau_s < 0 ||
+        !isfinite(p->speed_limit_mps) || p->speed_limit_mps <= 0 ||
         !isfinite(v->speed_cap_mps) || v->speed_cap_mps < 0)
         return false;
-    float e = v->direction_rad;
+    float e = v->lateral_m;
     uint32_t elapsed = v->capture_ms - s->previous_ms;
     float dt = (float)elapsed * .001f;
     if (!s->initialized || v->reset_derivative || elapsed < 5 || elapsed > 200)
         s->derivative = 0;
     else
-        s->derivative += dt / (p->visual_tau_s + dt) * ((e - s->error) / dt - s->derivative);
+        s->derivative += dt / (p->lateral_tau_s + dt) * ((e - s->error) / dt - s->derivative);
     s->error = e;
     s->previous_frame = v->frame_id;
     s->previous_ms = v->capture_ms;
     s->initialized = true;
-    o->direction_rad = v->direction_rad;
-    o->distance_px = v->distance_px;
-    o->omega_raw = -(p->visual_kp * e + p->visual_kd * s->derivative);
+    float speed = fminf(v->speed_cap_mps, p->speed_limit_mps);
+    o->omega_raw = -speed * v->curvature - (p->lateral_kp * e + p->lateral_kd * s->derivative);
     o->speed_cap_mps = v->speed_cap_mps;
     o->valid = isfinite(o->omega_raw);
     return o->valid;

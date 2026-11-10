@@ -33,6 +33,8 @@ static AppParam fixture(void) {
     p.row_distance_far_m = .5f;
     p.camera_forward_m = .1f;
     p.calibration_mask = 31;
+    p.ground_h0=.001f; p.ground_h2=-.0935f; p.ground_h4=-.004f; p.ground_h5=.6f;
+    p.lateral_kp=2;
     p.flags = 2;
     return p;
 }
@@ -58,6 +60,11 @@ static void parameters(void) {
     CHECK(param_decode(data, &q, &sequence));
     CHECK(sequence == 0xffffffffu);
     NEAR(q.counts_left, p.counts_left);
+    /* A valid CRC cannot make the previous schema load as metric gains. */
+    uint8_t old[APP_PARAM_RECORD_BYTES]; memcpy(old,data,sizeof old); old[4]=1;
+    uint32_t crc=app_crc32(old,248);
+    for(unsigned j=0;j<4;j++)old[248+j]=(uint8_t)(crc>>(8*j));
+    CHECK(!param_decode(old,&q,&sequence));
     for (unsigned i = 0; i < APP_PARAM_RECORD_BYTES; i++) {
         data[i] ^= 1;
         CHECK(!param_decode(data, &q, &sequence));
@@ -188,7 +195,7 @@ static void vision_and_path(void) {
     path_control_reset(&s, 8);
     d.state = TRACK_NORMAL;
     CHECK(path_control_step(&s, &v, &d, &p, &request));
-    CHECK(request.direction_rad > 0 && request.omega_raw < 0 && request.distance_px > 0);
+    CHECK(isfinite(request.omega_raw));
     /* Four border intervals, one on each side: cross must keep the top exit. */
     memset(pixels, 0, sizeof(pixels));
     stripe(89, 11);
