@@ -48,7 +48,8 @@ void app_control_tick_isr(void) {
                        CAL_VISION_V2_VALIDATED &&
                        (!CAL_FULL_RACE || (APP_ROUTE_LENGTH > 0 && APP_FINISH_DISTANCE_M > 0));
     if (elapsed == 0 || elapsed > 20000) {
-        if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING)
+        if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
+            status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG)
             fault(STOP_TIMING);
         dt = .005f;
     }
@@ -67,6 +68,29 @@ void app_control_tick_isr(void) {
                  status.vision_age_ms <= (uint32_t)g_app_param.soft_timeout_ms &&
                  status.feedback.valid;
     uint32_t requests = app_exchange_take_requests();
+    if (requests & REQ_HALT) {
+        motor_brake_zero();
+        memset(pi, 0, sizeof(pi)); memset(&plan, 0, sizeof(plan));
+        memset(&good, 0, sizeof(good)); memset(&status.targets, 0, sizeof(status.targets));
+        status.duty[0] = status.duty[1] = 0;
+        if (status.mode != RUN_FAULT) status.mode = RUN_STATIC_DEBUG;
+        status.reason = STOP_LOCAL;
+        status.session_id++;
+        requests = 0;
+    } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_SPEED_DEBUG))) {
+        bool speed_test = (requests & REQ_SPEED_DEBUG) != 0;
+        bool measured = status.feedback.valid &&
+            (g_app_param.calibration_mask & (APP_CAL_GEOMETRY | APP_CAL_ENCODER | APP_CAL_DIRECTION)) ==
+            (APP_CAL_GEOMETRY | APP_CAL_ENCODER | APP_CAL_DIRECTION);
+        if (!speed_test || (measured && param_valid(&g_app_param) && g_app_param.debug_speed_mps > 0)) {
+            status.mode = speed_test ? RUN_SPEED_DEBUG : RUN_DUTY_DEBUG;
+            status.reason = STOP_NONE;
+            memset(pi, 0, sizeof(pi)); memset(&plan, 0, sizeof(plan));
+            memset(&status.targets, 0, sizeof(status.targets));
+            status.session_id++;
+        }
+        requests = 0;
+    }
     if (run_manager_step(&status.mode, &status.reason, requests,
                          status.config_ok && status.feedback.valid &&
                              fabsf(status.feedback.speed_mps[0]) < .03f &&
@@ -77,7 +101,26 @@ void app_control_tick_isr(void) {
         if (status.mode == RUN_READY || status.mode == RUN_STATIC_DEBUG)
             memset(&good, 0, sizeof(good));
     }
-    if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING) {
+    if (status.mode == RUN_DUTY_DEBUG) {
+        /* Explicit open-loop diagnostic command, independent of racing duty_limit. */
+        status.duty[0] = status.duty[1] = .30f;
+        board_motor_write_en(SIDE_LEFT, 3000);
+        board_motor_write_en(SIDE_RIGHT, 3000);
+    } else if (status.mode == RUN_SPEED_DEBUG) {
+        if (!status.feedback.valid || !param_valid(&g_app_param)) fault(STOP_ENCODER);
+        else {
+            bool ok = motion_plan_step(&plan, &g_app_param, g_app_param.debug_speed_mps, 0,
+                                       dt, false, &status.targets);
+            if (ok) ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
+                g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
+                g_app_param.integral_limit, g_app_param.duty_limit, &status.duty[0]);
+            if (ok) ok = speed_pi_step(&pi[1], plan.right, status.feedback.speed_mps[1], dt,
+                g_app_param.kp_right, g_app_param.ki_right, g_app_param.ff_right,
+                g_app_param.integral_limit, g_app_param.duty_limit, &status.duty[1]);
+            if (!ok) fault(STOP_NONFINITE);
+            else motor_apply_forward(status.duty[0], status.duty[1]);
+        }
+    } else if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING) {
         if (!status.feedback.valid)
             fault(STOP_ENCODER);
         else if (!good.valid || good.session_id != status.session_id ||
@@ -128,7 +171,7 @@ void app_control_tick_isr(void) {
     }
     if (board_time_us() - start > 4000) {
         status.overruns++;
-        if (status.overruns >= 3 && status.mode == RUN_RUNNING)
+        if (status.overruns >= 3 && (status.mode == RUN_RUNNING || status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG))
             fault(STOP_TIMING);
     }
     app_exchange_publish_control(&status);

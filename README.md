@@ -1,14 +1,16 @@
-# second-test · CH32V307 智能车 V1.3
+# second-test · CH32V307 智能车 V1.50
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
-V1.3 主机回归测试覆盖生产算法源码；本次未运行 WCH 目标编译，未生成新的 ELF、HEX、BIN。历史 release/v1.2 固件不是当前源码。**尚未上板验证，默认实测参数为空，保持静态调试并禁止发车。** 完整比赛路线还需现场配置和验证。
+V1.50基于主干V1.3，加入KEY1单键菜单、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash80584B、RAM31388B。**尚未上板验证，默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
 
 ## 视觉与电控分层
 
 视觉实现放在 `User/vision`，电控算法放在 `User/control`，通过 `User/shared/vision_control.h` 的 `VisionOutput` 连接。调参分别改 `User/config/vision_tuning.h` 和 `control_tuning.h`。详见[V1.2分层、替换和调参说明](docs/V1.2视觉电控分层与调参.md)。
 
-## 文档阅读顺序（当前V1.3）
+## 文档阅读顺序（当前V1.50）
+
+菜单使用先读[V1.50屏幕菜单与调试](docs/V1.50屏幕菜单与调试.md)。
 
 1. [电控算法原理](docs/智能车电控算法开发文档.md)：先理解车怎么转，跟完一个右转例子。
 2. [项目结构、函数调度、主流程与参数](docs/项目结构与主流程参数说明.md)：术语白话解释、文件位置和调参。
@@ -41,10 +43,18 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 对应前提是主板 H3 与驱动板 CN5 同脚号直连。右路第3脚是 PH，第4脚是 EN。两板共地，编码器供电与输出电平核对3.3V系统。PH 的机械前进极性仍须实测。
 
-上电 UART3 PB10/PB11 输出115200日志；屏幕显示静态状态，五向右键看二值图。先填 `User/config/vehicle_calibration.h` 的实测数据，再调 PI 与视觉参数。中键准备、KEY1发车、KEY2停车；全部标定条件未通过时不能准备。运行中没有远程控制或串口改参。
+上电主菜单为 `start / para / control`。只用KEY1：点按松手下移，长按800ms确认，每个子菜单都有back，其余六键不执行操作。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉和电控，数字键盘ok应用、save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
+
+重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash记录schema=4，兼容V1.3 schema=2；未标定的零值可保存，但仍不能发车。
+
+## VOFA UART3协议与用法
+
+UART3 PB10(TX)接USB转TTL的RX并共地，使用3.3V逻辑。电脑选择对应COM、115200、8N1、JustFloat。依据[VOFA官方JustFloat协议](https://www.vofa.plus/docs/learning/dataengines/justfloat/)，每帧为四个float32小端数，后接 `00 00 80 7F`，共20字节，每20ms发送一次。四通道依次为**左要求速度、左编码器实测速度、右要求速度、右编码器实测速度**，单位m/s；要求速度是加速规划后送给PI的目标。
+
+先设置control / VOFA target m/s为正值，再确认vofa，会自动启动两轮速度闭环，屏幕显示目标与实测速度。几何、编码器和方向标定必须先完成。run 30独立保留为固定30%开环调试，不经过PI，且不受比赛duty_limit默认25%的裁剪。退出实时页或执行stop即停止电机和发送。发送时不混入printf日志，本版不接受串口文本命令。详细包示例、保存流程和上板步骤见[V1.50说明](docs/V1.50屏幕菜单与调试.md)。
 
 正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。IMU 和电流闭环未启用；实际驱动板没有接回电流/故障反馈。
 
 来源和第三方修改见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [LICENSES](LICENSES/README.md)。
 
-V1.3 的米制坐标、标定、符号、调参和验证边界见 [V1.3说明](docs/V1.3米制路径控制.md)。本次只做主机测试，不宣称旧发布固件包含本次改动。
+V1.3的米制路径算法继续使用，坐标、标定与符号见[V1.3说明](docs/V1.3米制路径控制.md)。

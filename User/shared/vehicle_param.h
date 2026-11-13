@@ -18,7 +18,7 @@
                         X(island_min_distance_m) X(island_min_turn_rad) X(camera_forward_m)        \
                             X(row_distance_near_m) X(row_distance_far_m) X(width_near_px)          \
                                 X(width_far_px) X(row_jump_px) X(confirm_ms) X(release_ms) \
-    X(ground_h0) X(ground_h1) X(ground_h2) X(ground_h3) X(ground_h4) X(ground_h5) X(ground_h6) X(ground_h7)
+    X(ground_h0) X(ground_h1) X(ground_h2) X(ground_h3) X(ground_h4) X(ground_h5) X(ground_h6) X(ground_h7) X(debug_speed_mps)
 typedef struct {
 #define DECL_FIELD(n) float n;
     APP_FLOAT_FIELDS(DECL_FIELD)
@@ -30,6 +30,7 @@ typedef struct {
 } AppParam;
 void param_defaults(AppParam *p);
 bool param_valid(const AppParam *p);
+bool param_storable(const AppParam *p);
 bool param_can_arm(const AppParam *p, bool full_race);
 float param_track(const AppParam *p);
 bool param_encode(const AppParam *p, uint32_t sequence, uint8_t out[APP_PARAM_RECORD_BYTES]);

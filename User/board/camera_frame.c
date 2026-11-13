@@ -4,6 +4,7 @@
 enum { FRAME_CAPTURE, FRAME_READY, FRAME_PROCESSING, FRAME_FAILED };
 static volatile uint8_t state = FRAME_CAPTURE;
 static volatile bool enabled, discard;
+static bool camera_initialized;
 static volatile uint32_t frame_id, capture_ms;
 bool camera_frame_init(void) {
     enabled = false;
@@ -14,6 +15,7 @@ bool camera_frame_init(void) {
         state = FRAME_FAILED;
         return false;
     }
+    camera_initialized = true;
     BoardIrqToken t = board_irq_save();
     enabled = true;
     (void)board_camera_hold_after_frame_isr();
@@ -41,7 +43,7 @@ void camera_frame_on_done_isr(void) {
 }
 bool camera_frame_acquire(FrameView *f) {
     BoardIrqToken t = board_irq_save();
-    if (state != FRAME_READY) {
+    if (!enabled || state != FRAME_READY) {
         board_irq_restore(t);
         return false;
     }
@@ -57,11 +59,27 @@ bool camera_frame_acquire(FrameView *f) {
 }
 void camera_frame_release(uint32_t id) {
     BoardIrqToken t = board_irq_save();
-    if (state == FRAME_PROCESSING && frame_id == id) {
+    if (enabled && state == FRAME_PROCESSING && frame_id == id) {
         discard = true;
         state = FRAME_CAPTURE;
         if (!board_camera_restart_full_frame())
             state = FRAME_FAILED;
     }
     board_irq_restore(t);
+}
+
+/* Pause acquisition/DMA; sensor remains powered. Screen and KEY1 remain active. */
+bool camera_frame_set_running(bool running) {
+    BoardIrqToken t = board_irq_save();
+    enabled = false;
+    bool ok = board_camera_hold_after_frame_isr();
+    state = FRAME_CAPTURE;
+    discard = true;
+    if (running) {
+        ok = ok && camera_initialized && board_camera_restart_full_frame();
+        enabled = ok;
+        if (!ok) state = FRAME_FAILED;
+    }
+    board_irq_restore(t);
+    return ok;
 }

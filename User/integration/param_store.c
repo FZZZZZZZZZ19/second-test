@@ -21,8 +21,10 @@ bool param_store_load(AppParam *p) {
 bool param_store_save(const AppParam *p) {
     ControlSnapshot s;
     app_exchange_read_control(&s);
-    if (s.mode != RUN_STATIC_DEBUG || !s.feedback.valid || fabsf(s.feedback.speed_mps[0]) > .01f ||
-        fabsf(s.feedback.speed_mps[1]) > .01f || !param_valid(p))
+    if (s.mode != RUN_STATIC_DEBUG || s.duty[0] != 0 || s.duty[1] != 0 ||
+        s.feedback.delta[0] != 0 || s.feedback.delta[1] != 0 ||
+        (s.feedback.valid && (fabsf(s.feedback.speed_mps[0]) > .01f || fabsf(s.feedback.speed_mps[1]) > .01f)) ||
+        !param_storable(p))
         return false;
     AppParam a, b;
     uint32_t sa = 0, sb = 0;

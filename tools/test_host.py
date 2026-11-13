@@ -28,11 +28,15 @@ def main():
         print(label + ': ' + result.stdout.strip())
     # Link each domain alone: catches hidden calls across the algorithm boundary.
     for label, sources in [('vision', ['vision_line','vision_boundary','vision_target','vision_pipeline','track_element','vehicle_progress','app_math']),
-                           ('control', ['path_control','speed_control','motion_plan','app_math','vehicle_param'])]:
+                           ('control', ['path_control','speed_control','motion_plan','app_math','vehicle_param']),
+                           ('menu_ui', ['menu_model','debug_view','camera_frame','vehicle_param','app_math']),
+                           ('menu', ['menu_model','vehicle_param','app_math']),
+                           ('menu_runtime', ['app_control','run_manager','motion_plan','speed_control','vehicle_param','app_math'])]:
         executable = out / ('test_' + label + '.exe')
         cmd = [args.cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2',
                *[arg for folder in ['User', *['User/'+d for d in ['vision','control','board','shared','integration','config']]] for arg in ['-I',str(ROOT/folder)]],
-               str(ROOT / ('tests/test_'+label+'_module.c')),
+               *(['-I', str(ROOT / 'tests/stubs')] if label == 'menu_ui' else []),
+               str(ROOT / (('tests/test_'+label+'.c') if label in ['menu','menu_runtime','menu_ui'] else ('tests/test_'+label+'_module.c'))),
                *[str(next((ROOT/'User').rglob(n+'.c'))) for n in sources], '-lm', '-o', str(executable)]
         subprocess.run(cmd, check=True)
         result = subprocess.run([str(executable)], capture_output=True, text=True, check=True)

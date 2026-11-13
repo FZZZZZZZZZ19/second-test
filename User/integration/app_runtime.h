@@ -22,6 +22,7 @@ void motor_init_zero(void);
 void motor_apply_forward(float left, float right);
 void motor_brake_zero(void);
 bool camera_frame_init(void);
+bool camera_frame_set_running(bool running);
 void camera_frame_on_done_isr(void);
 bool camera_frame_acquire(FrameView *f);
 void camera_frame_release(uint32_t frame_id);

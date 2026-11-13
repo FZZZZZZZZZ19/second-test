@@ -36,6 +36,7 @@ bool app_boot_init(void) {
     pit_ms_init(TIM6_PIT, APP_CONTROL_PERIOD_MS);
     bool ok = camera_frame_init();
     app_control_camera_ready(ok);
+    (void)camera_frame_set_running(false);
     debug_view_init();
     return ok;
 }

@@ -9,7 +9,7 @@ void param_defaults(AppParam *p) {
     vision_param_defaults(p);
     control_param_defaults(p);
 }
-bool param_valid(const AppParam *p) {
+static bool validate_param(const AppParam *p, bool allow_missing) {
     if (!p)
         return false;
 #define CHECK_FINITE(n)                                                                            \
@@ -17,16 +17,14 @@ bool param_valid(const AppParam *p) {
         return false;
     APP_FLOAT_FIELDS(CHECK_FINITE)
 #undef CHECK_FINITE
-    if (p->wheel_left_m < .01f || p->wheel_left_m > .3f || p->wheel_right_m < .01f ||
-        p->wheel_right_m > .3f)
-        return false;
-    if (p->track_m < .03f || p->track_m > .6f || p->axle_m < .01f || p->axle_m > .6f)
-        return false;
+    if ((!allow_missing || p->wheel_left_m != 0) && (p->wheel_left_m < .01f || p->wheel_left_m > .3f)) return false;
+    if ((!allow_missing || p->wheel_right_m != 0) && (p->wheel_right_m < .01f || p->wheel_right_m > .3f)) return false;
+    if ((!allow_missing || p->track_m != 0) && (p->track_m < .03f || p->track_m > .6f)) return false;
+    if ((!allow_missing || p->axle_m != 0) && (p->axle_m < .01f || p->axle_m > .6f)) return false;
     if (p->effective_track_m != 0 && (p->effective_track_m < .03f || p->effective_track_m > 1.5f))
         return false;
-    if (p->counts_left < 1 || p->counts_right < 1 || p->counts_left > 1000000 ||
-        p->counts_right > 1000000)
-        return false;
+    if ((!allow_missing || p->counts_left != 0) && (p->counts_left < 1 || p->counts_left > 1000000)) return false;
+    if ((!allow_missing || p->counts_right != 0) && (p->counts_right < 1 || p->counts_right > 1000000)) return false;
     if (p->encoder_tau_s < 0 || p->encoder_tau_s > 1 || p->integral_limit < 0 ||
         p->integral_limit > 1)
         return false;
@@ -40,6 +38,8 @@ bool param_valid(const AppParam *p) {
         return false;
     if (p->lateral_kp < 0 || p->lateral_kd < 0 || p->lateral_tau_s < 0 || p->center_x_px < 0 ||
         p->center_x_px >= APP_WIDTH)
+        return false;
+    if (p->debug_speed_mps < 0 || p->debug_speed_mps > p->speed_limit_mps)
         return false;
     if (p->speed_normal < 0 || p->speed_corner < 0 || p->speed_element < 0 ||
         p->speed_normal > p->speed_limit_mps || p->speed_corner > p->speed_limit_mps ||
@@ -60,6 +60,9 @@ bool param_valid(const AppParam *p) {
     return (p->encoder_sign[0] == 1 || p->encoder_sign[0] == -1) &&
            (p->encoder_sign[1] == 1 || p->encoder_sign[1] == -1);
 }
+bool param_valid(const AppParam *p) { return validate_param(p, false); }
+/* Zero unmeasured geometry may be saved, but remains invalid for feedback/arming. */
+bool param_storable(const AppParam *p) { return validate_param(p, true); }
 bool param_can_arm(const AppParam *p, bool race) {
     return param_valid(p) && p->row_distance_near_m > 0 &&
            p->row_distance_far_m > p->row_distance_near_m &&
@@ -77,12 +80,12 @@ static uint32_t get32(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_BYTES]) {
-    if (!param_valid(p) || !out)
+    if (!param_storable(p) || !out)
         return false;
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 2);
+    put32(out + 4, 4);
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -107,7 +110,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     return true;
 }
 bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_t *seq) {
-    if (!in || !p || !seq || get32(in) != 0x53545631u || get32(in + 4) != 2 ||
+    if (!in || !p || !seq || get32(in) != 0x53545631u || (get32(in + 4) != 2 && get32(in + 4) != 4) ||
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     AppParam candidate;
@@ -122,6 +125,10 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     APP_FLOAT_FIELDS(DECODE)
 #undef DECODE
+    if (get32(in + 4) == 2) {
+        candidate.debug_speed_mps = 0; /* require an explicit target after migration */
+        n--;
+    }
     if (get32(in + 12) != n || get32(in + 24) > 255 || get32(in + 28) > 3)
         return false;
     candidate.calibration_mask = get32(in + 16);
@@ -129,7 +136,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     candidate.threshold = (uint8_t)get32(in + 24);
     candidate.encoder_sign[0] = (get32(in + 28) & 1) ? -1 : 1;
     candidate.encoder_sign[1] = (get32(in + 28) & 2) ? -1 : 1;
-    if (!param_valid(&candidate))
+    if (!param_storable(&candidate))
         return false;
     *p = candidate;
     *seq = get32(in + 8);
