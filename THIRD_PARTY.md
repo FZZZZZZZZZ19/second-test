@@ -13,3 +13,10 @@
 源码换行统一为 LF，保留原文件字符编码；仓库属性固定文本换行，避免检出平台改变构建输入哈希。
 
 V1.1新增视觉算法为本项目应用层代码，未引入额外第三方图像库。
+
+
+## Menu bold font (V1.50.1)
+
+The embedded ASCII menu bitmap is rasterized from DejaVu Sans Mono Bold.
+Font copyright and permission notices are in [LICENSES/DejaVu-font.txt](LICENSES/DejaVu-font.txt).
+The generator is tools/generate_menu_font.py; only raster glyph data is embedded.
