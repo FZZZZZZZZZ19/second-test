@@ -102,7 +102,7 @@ MenuAction menu_confirm(MenuModel *m) {
 }
 MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now) {
     bool keypad = m->page == MENU_KEYPAD;
-    /* 74HC148: up=4 down=5 left=6 right=2 center=1; none=7. */
+    /* Installed switch/screen orientation: up=5 down=4 left=2 right=6. Center=1, none=7. */
     if (keypad) code = (code==1 || code==2 || code==4 || code==5 || code==6) ? code : 7;
     else code = code == 3 ? 3 : 7;
     if (code != m->candidate) { m->candidate = code; m->candidate_ms = now; }
@@ -112,8 +112,8 @@ MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now) {
             if (code == 7) return MENU_NONE;
             m->held = true; /* consume release even if center leaves the keypad */
             if (code == 1) return menu_confirm(m);
-            int dx = code==2 ? 1 : code==6 ? -1 : 0;
-            int dy = code==5 ? 1 : code==4 ? -1 : 0;
+            int dx = code==6 ? 1 : code==2 ? -1 : 0;
+            int dy = code==4 ? 1 : code==5 ? -1 : 0;
             int x=(int)(m->selected%4), y=(int)(m->selected/4);
             for (unsigned skip=0; skip<2; skip++) {
                 x+=dx; y+=dy;

@@ -57,18 +57,18 @@ int main(void) {
     assert(menu_confirm(&m)==MENU_STOP && m.page==MENU_CONTROL);
     MenuModel k; menu_init(&k); k.page=MENU_KEYPAD; k.parent=MENU_VISION;
     assert(menu_count(&k)==16);
-    way(&k,4); assert(k.selected==0); /* upper edge clamps */
-    way(&k,2); assert(k.selected==1); way(&k,5); assert(k.selected==5);
-    way(&k,6); assert(k.selected==4); way(&k,4); assert(k.selected==0);
+    way(&k,5); assert(k.selected==0); /* upper edge clamps */
+    way(&k,6); assert(k.selected==1); way(&k,4); assert(k.selected==5);
+    way(&k,2); assert(k.selected==4); way(&k,5); assert(k.selected==0);
     way(&k,1); assert(!strcmp(k.input,"1")); /* held center only once */
     way(&k,3); assert(!strcmp(k.input,"1") && k.selected==0); /* KEY1 ignored here */
-    k.selected=13; way(&k,2); assert(k.selected==15); /* skip blank */
-    way(&k,6); assert(k.selected==13);
-    k.selected=10; way(&k,5); assert(k.selected==10); /* blank at bottom, stay */
+    k.selected=13; way(&k,6); assert(k.selected==15); /* skip blank */
+    way(&k,2); assert(k.selected==13);
+    k.selected=10; way(&k,4); assert(k.selected==10); /* blank at bottom, stay */
     pick(&k,"CLR"); way(&k,1); assert(!k.input[0]);
     pick(&k,"OK"); assert(way(&k,1)==MENU_APPLY);
     pick(&k,"BACK"); way(&k,1); assert(k.page==MENU_VISION && k.selected==0);
-    way(&k,2); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
+    way(&k,6); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
     ControlSnapshot s={0}; s.targets.left_mps=1; s.targets.right_mps=-2;
     s.feedback.speed_mps[0]=.5f; s.feedback.speed_mps[1]=0;
     uint8_t packet[20]; vofa_pack(&s,packet);

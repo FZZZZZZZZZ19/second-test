@@ -22,9 +22,10 @@ void menu_font_text(unsigned y, const char *text, unsigned scale, bool selected)
 }
 
 void menu_font_cell(unsigned x,unsigned y,unsigned width,unsigned height,const char *text,bool selected) {
-    if (!text || !width || height<16 || x+width>160 || y+height>128) return;
+    if (!text || !width || height<14 || x+width>160 || y+height>128) return;
     unsigned n=0;
-    while (text[n] && n<width/8) n++;
+    while (text[n] && n<width/7) n++;
+    unsigned glyph_w=n>2?6:7, glyph_h=n>2?12:14;
     uint16_t tile[8*16];
     for(unsigned j=0;j<8*16;j++) tile[j]=selected?0x0000:0xffff;
     tft180_show_rgb565_image((uint16_t)x,(uint16_t)y,tile,8,16,(uint16_t)width,(uint16_t)height,0);
@@ -35,7 +36,7 @@ void menu_font_cell(unsigned x,unsigned y,unsigned width,unsigned height,const c
             bool ink=(menu_glyphs[glyph-32][row] & (0x80u>>col))!=0;
             tile[row*8+col]=ink!=selected?0x0000:0xffff;
         }
-        tft180_show_rgb565_image((uint16_t)(x+(width-n*8)/2+c*8),(uint16_t)(y+(height-16)/2),tile,8,16,8,16,0);
+        tft180_show_rgb565_image((uint16_t)(x+(width-n*glyph_w)/2+c*glyph_w),(uint16_t)(y+(height-glyph_h)/2),tile,8,16,(uint16_t)glyph_w,(uint16_t)glyph_h,0);
     }
     tft180_draw_line((uint16_t)x,(uint16_t)y,(uint16_t)(x+width-1),(uint16_t)y,0);
     tft180_draw_line((uint16_t)x,(uint16_t)(y+height-1),(uint16_t)(x+width-1),(uint16_t)(y+height-1),0);

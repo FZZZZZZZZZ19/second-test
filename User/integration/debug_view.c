@@ -126,7 +126,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         if (grid_selected != menu.selected) {
             for (unsigned i=0; i<16; i++) {
                 if (grid_selected<16 && i!=grid_selected && i!=menu.selected) continue;
-                menu_font_cell((i%4)*40,48+(i/4)*20,40,20,
+                menu_font_cell(4+(i%4)*30,52+(i/4)*18,30,18,
                                menu_label(&menu,i),i==menu.selected);
             }
             grid_selected=menu.selected;

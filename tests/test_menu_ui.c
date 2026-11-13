@@ -10,7 +10,7 @@ static ControlSnapshot s;
 static unsigned resumes, images, saves, packets;
 static bool capture;
 static unsigned char screen[128][160];
-static unsigned rgb_tiles;
+static unsigned rgb_tiles, grid_cells;
 BoardIrqToken board_irq_save(void) { return 0; }
 void board_irq_restore(BoardIrqToken t) { (void)t; }
 void board_memory_barrier(void) {}
@@ -33,6 +33,10 @@ void tft180_clear(void) { memset(screen,255,sizeof screen); }
 void tft180_set_color(uint16_t pen,uint16_t bg) { assert(pen==0 && bg==0xffff); }
 void tft180_show_rgb565_image(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t color_mode) {
     assert(x+dw<=160 && y+dh<=128 && w==8 && h==16 && color_mode==0);
+    if(dw==30 && dh==18) {
+        assert(x>=4 && x+dw<=124 && y>=52 && y+dh<=124);
+        grid_cells++;
+    }
     rgb_tiles++;
     for(unsigned j=0;j<dh;j++)for(unsigned i=0;i<dw;i++) screen[y+j][x+i]=p[(j*h/dh)*w+i*w/dw]==0?0:255;
 }
@@ -72,16 +76,16 @@ int main(void) {
     unsigned count=resumes; camera_frame_on_done_isr(); assert(!camera_frame_acquire(&f) && count==resumes);
     s.mode=RUN_STATIC_DEBUG; requests=0;
     click(); hold(); snapshot("build/host/menu-para.pgm"); /* para */
-    hold(); hold(); snapshot("build/host/menu-keypad.pgm"); /* vision -> omega Kp */
+    hold(); hold(); assert(grid_cells>=16); snapshot("build/host/menu-keypad.pgm"); /* vision -> omega Kp */
     unsigned tile_count=rgb_tiles; poll(100); assert(tile_count==rgb_tiles);
-    way(2); poll(100); assert(rgb_tiles>tile_count); /* grid selection repaint */
-    way(6); way(1); /* input 1 */
-    way(2); way(2); way(2); /* DEL */
-    way(5); way(5); /* OK */
+    way(6); poll(100); assert(rgb_tiles>tile_count); /* grid selection repaint */
+    way(2); way(1); /* input 1 */
+    way(6); way(6); way(6); /* DEL */
+    way(4); way(4); /* OK */
     way(1); /* apply -> vision */
     assert(g_app_param.lateral_kp==1);
     hold(); /* reopen omega Kp */
-    way(2); way(2); way(2); way(5); way(5); way(5); way(1); /* BACK */
+    way(6); way(6); way(6); way(4); way(4); way(4); way(1); /* BACK */
     click(); click(); click(); hold(); /* vision back -> para */
     click(); click(); hold(); assert(saves==1); /* save without inventing geometry */
     AppParam loaded; uint32_t sequence;
