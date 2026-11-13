@@ -1,4 +1,6 @@
 #include "app_runtime.h"
+#include "maintenance.h"
+#include <math.h>
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +27,7 @@ void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
 void app_control_init(void) {}
 bool side_encoder_init(void) { return true; }
 void motor_brake_zero(void) {}
-bool param_store_save(const AppParam *p) { saves++; return save_ok && param_encode(p,saves,record); }
+bool param_store_save(const AppParam *p) { assert(maintenance_save_check(&s,p)==MAINT_OK); saves++; return save_ok && param_encode(p,saves,record); }
 void tft180_init(void) {}
 void tft180_set_dir(int d) { (void)d; }
 void tft180_set_font(int f) { assert(f==1); }
@@ -61,7 +63,7 @@ static void click(void) { way(4); }
 static void hold(void) { way(1); }
 static void back(void) { way(3); }
 int main(void) {
-    param_defaults(&g_app_param); s.mode=RUN_STATIC_DEBUG; s.config_ok=true;
+    param_defaults(&g_app_param); s.mode=RUN_STATIC_DEBUG; s.config_ok=true; s.feedback.delta[1]=-6;
     assert(camera_frame_init()); assert(camera_frame_set_running(false)); debug_view_init(); poll(100);
     snapshot("build/host/menu-main.pgm");
     assert(screen[16][0]==0 && screen[48][0]==255); /* selected row is inverted */
@@ -105,9 +107,12 @@ int main(void) {
     assert(param_decode(record,&loaded,&sequence) && loaded.wheel_left_m==0 && !param_can_arm(&loaded,false));
     click(); hold(); /* para back -> main */
     click(); click(); hold(); /* control */
-    click(); click(); hold(); /* vofa blocked without target/calibration */
-    assert(!(requests&REQ_SPEED_DEBUG));
+    click(); click(); hold(); /* no calibration -> VOFA starts run30, not a fake speed loop */
+    assert((requests&REQ_RUN30) && !(requests&REQ_SPEED_DEBUG));
+    s.mode=RUN_DUTY_DEBUG; s.duty[0]=s.duty[1]=.3f; poll(100);
+    snapshot("build/host/menu-vofa-open.pgm");
     back(); /* KEY1 live back stops -> control */
+    s.mode=RUN_STATIC_DEBUG; s.duty[0]=s.duty[1]=0; requests=0;
     g_app_param.wheel_left_m=g_app_param.wheel_right_m=.06f;
     g_app_param.track_m=.15f; g_app_param.axle_m=.1f; g_app_param.counts_left=g_app_param.counts_right=100;
     g_app_param.calibration_mask=7; g_app_param.debug_speed_mps=.1f; s.feedback.valid=true;

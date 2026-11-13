@@ -1,6 +1,7 @@
 
 #include "menu_model.h"
 #include "core_math.h"
+#include "maintenance.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -80,6 +81,21 @@ int main(void) {
     uint8_t packet[20]; vofa_pack(&s,packet);
     const uint8_t expected[20]={0,0,0x80,0x3f,0,0,0,0x3f,0,0,0,0xc0,0,0,0,0,0,0,0x80,0x7f};
     assert(!memcmp(packet,expected,20));
+    s.mode=RUN_DUTY_DEBUG; vofa_pack(&s,packet);
+    for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(isnan(v)); }
+    assert(packet[16]==0 && packet[17]==0 && packet[18]==0x80 && packet[19]==0x7f);
+    ControlSnapshot stopped={0}; stopped.mode=RUN_STATIC_DEBUG; stopped.feedback.delta[1]=-6;
+    param_defaults(&p); p.debug_speed_mps=.2f;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_OK); /* real-board regression: uncalibrated raw activity */
+    stopped.feedback.valid=true; assert(maintenance_save_check(&stopped,&p)==MAINT_MOTION);
+    stopped.feedback.delta[1]=0; stopped.feedback.speed_mps[1]=NAN;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_MOTION);
+    stopped.feedback.valid=false; stopped.duty[0]=.3f;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_OUTPUT);
+    stopped.duty[0]=0; stopped.mode=RUN_DUTY_DEBUG;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_MODE);
+    stopped.mode=RUN_STATIC_DEBUG; p.debug_speed_mps=NAN;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_PARAM);
     param_defaults(&p);
     assert(!param_valid(&p) && param_storable(&p));
     uint8_t blank[APP_PARAM_RECORD_BYTES]; AppParam defaults; uint32_t blank_seq;

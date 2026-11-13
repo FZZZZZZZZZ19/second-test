@@ -160,6 +160,7 @@ void vofa_pack(const ControlSnapshot *s, uint8_t out[20]) {
     _Static_assert(sizeof(float) == 4, "float32 required");
     float values[4] = {s->targets.left_mps, s->feedback.speed_mps[0],
                        s->targets.right_mps, s->feedback.speed_mps[1]};
+    if(s->mode==RUN_DUTY_DEBUG) for(unsigned i=0;i<4;i++) values[i]=NAN;
     for (unsigned i = 0; i < 4; i++) {
         uint32_t bits; memcpy(&bits, &values[i], 4);
         for (unsigned j = 0; j < 4; j++) out[4*i+j] = (uint8_t)(bits >> (8*j));

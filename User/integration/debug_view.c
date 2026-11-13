@@ -2,6 +2,7 @@
 #include "app_runtime.h"
 #include "menu_model.h"
 #include "menu_font.h"
+#include "maintenance.h"
 #include "zf_common_headfile.h"
 #include <math.h>
 #include <stdio.h>
@@ -9,7 +10,7 @@
 static MenuModel menu;
 static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms, quiet_since;
-static bool vofa_enabled, start_pending;
+static bool vofa_enabled, start_pending, vofa_open_loop;
 static char message[27] = "U/D OK; K1 back";
 static char row_cache[8][21];
 static uint8_t row_style[8];
@@ -27,11 +28,7 @@ static void styled_line(unsigned row, const char *text, unsigned scale, bool sel
 }
 static void line(unsigned row, const char *text) { styled_line(row,text,1,false); }
 static void note(const char *text) { snprintf(message, sizeof message, "%.26s", text); }
-static bool stationary(const ControlSnapshot *s) {
-    return s->mode == RUN_STATIC_DEBUG && s->duty[0] == 0 && s->duty[1] == 0 &&
-        s->feedback.delta[0] == 0 && s->feedback.delta[1] == 0 &&
-        (!s->feedback.valid || (fabsf(s->feedback.speed_mps[0]) < .01f && fabsf(s->feedback.speed_mps[1]) < .01f));
-}
+static bool stationary(const ControlSnapshot *s) { return maintenance_stop_check(s)==MAINT_OK; }
 static void stop_all(const ControlSnapshot *s) {
     start_pending = false; vofa_enabled = false;
     app_exchange_request(s->mode == RUN_FAULT ? REQ_RESET : REQ_HALT);
@@ -49,9 +46,13 @@ void debug_view_init(void) {
     /* UART3 is kept exclusively binary once VOFA is enabled. */
 }
 static bool save_parameters(const AppParam *candidate,const ControlSnapshot *s) {
-    if (!stationary(s) || board_time_ms()-quiet_since<500 || !param_storable(candidate)) {
-        note("save: wait/check"); return false;
+    MaintenanceCheck check=maintenance_save_check(s,candidate);
+    if(check!=MAINT_OK) {
+        note(check==MAINT_MODE?"SAVE: STOP FIRST":check==MAINT_OUTPUT?"SAVE: PWM NOT ZERO":
+             check==MAINT_MOTION?"SAVE: WHEELS MOVE":"SAVE: BAD PARAM");
+        return false;
     }
+    if(board_time_ms()-quiet_since<500) { note("SAVE: WAIT 0.5S"); return false; }
     (void)camera_frame_set_running(false);
     motor_brake_zero(); pit_disable(TIM6_PIT);
     bool ok=param_store_save(candidate);
@@ -75,14 +76,13 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     case MENU_RUN30:
     case MENU_VOFA:
         if (s->mode != RUN_STATIC_DEBUG) { note("blocked: stop first"); break; }
-        if (a == MENU_VOFA && (!s->feedback.valid || !param_valid(&g_app_param) ||
-            g_app_param.debug_speed_mps <= 0 ||
-            (g_app_param.calibration_mask & 7u) != 7u)) {
-            note("set speed / enc CAL"); break;
-        }
         vofa_enabled = a == MENU_VOFA;
-        app_exchange_request(a == MENU_VOFA ? REQ_SPEED_DEBUG : REQ_RUN30);
-        note(a == MENU_VOFA ? "VOFA speed PI" : "run30: OPEN LOOP"); break;
+        bool closed_ready=s->feedback.valid && param_valid(&g_app_param) &&
+            g_app_param.debug_speed_mps>0 && (g_app_param.calibration_mask&7u)==7u;
+        vofa_open_loop=vofa_enabled && !closed_ready;
+        app_exchange_request(vofa_enabled && closed_ready?REQ_SPEED_DEBUG:REQ_RUN30);
+        note(vofa_open_loop?"VOFA open30: no m/s":vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
+        break;
     case MENU_CAMERA:
         note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
     case MENU_STOP: stop_all(s); break;
@@ -141,13 +141,19 @@ static void render(const ControlSnapshot *s, uint32_t now) {
     } else if (menu.page == MENU_LIVE) {
         snprintf(text,sizeof text,"%s M%u E%u F%u", vofa_enabled ? "VOFA" : "test",
                  (unsigned)s->mode,s->feedback.valid,(unsigned)s->reason); line(0,text);
-        menu_float_text(a, sizeof a, s->feedback.speed_mps[0]);
-        snprintf(text, sizeof text, "L m/s %s", a); line(2, text);
-        menu_float_text(a, sizeof a, s->feedback.speed_mps[1]);
-        snprintf(text, sizeof text, "R m/s %s", a); line(3, text);
-        menu_float_text(a, sizeof a, s->targets.left_mps);
-        menu_float_text(b, sizeof b, s->targets.right_mps);
-        snprintf(text, sizeof text, "ref L%s R%s", a, b); line(4, text);
+        if(vofa_enabled && vofa_open_loop) {
+            snprintf(text,sizeof text,"L cnt %+ld",(long)s->feedback.delta[0]); line(2,text);
+            snprintf(text,sizeof text,"R cnt %+ld",(long)s->feedback.delta[1]); line(3,text);
+            line(4,"m/s N/A (open loop)");
+        } else {
+            menu_float_text(a, sizeof a, s->feedback.speed_mps[0]);
+            snprintf(text, sizeof text, "L m/s %s", a); line(2, text);
+            menu_float_text(a, sizeof a, s->feedback.speed_mps[1]);
+            snprintf(text, sizeof text, "R m/s %s", a); line(3, text);
+            menu_float_text(a, sizeof a, s->targets.left_mps);
+            menu_float_text(b, sizeof b, s->targets.right_mps);
+            snprintf(text, sizeof text, "ref L%s R%s", a, b); line(4, text);
+        }
         snprintf(text, sizeof text, "PWM L%ld%% R%ld%%", (long)(s->duty[0]*100), (long)(s->duty[1]*100)); line(5, text);
         styled_line(6, menu.selected == 0 ? ">stop" : " stop",1,menu.selected==0);
         styled_line(7, menu.selected == 1 ? ">back" : " back",1,menu.selected==1);
