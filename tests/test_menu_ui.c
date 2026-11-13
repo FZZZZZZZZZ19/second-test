@@ -84,8 +84,8 @@ int main(void) {
     way(6); poll(100); assert(rgb_tiles>tile_count); /* grid selection repaint */
     way(2); way(1); /* input 1 */
     way(6); way(6); way(6); /* DEL */
-    way(4); way(4); /* OK */
-    way(1); /* apply -> vision */
+    way(4); way(4); way(4); way(2); /* SAVE */
+    way(1); /* save -> vision */
     assert(g_app_param.lateral_kp==1);
     hold(); /* reopen omega Kp, input 2 and SAVE */
     way(6); way(1); way(4); way(4); way(4); way(6);
@@ -101,7 +101,17 @@ int main(void) {
     assert(param_decode(record,&from_save,&saved_seq) && from_save.lateral_kp==2);
     hold(); way(1); back(); /* type but KEY1 cancels */
     assert(g_app_param.lateral_kp==2 && saves==attempts+1);
-    click(); click(); click(); hold(); /* vision back -> para */
+    click(); click(); click(); hold(); /* camera calibration */
+    snapshot("build/host/menu-camera-cal.pgm");
+    for(unsigned j=0;j<7;j++) { click(); }
+    hold(); /* ground_h7 */
+    way(6); way(6); way(6); way(4); way(4); way(1); /* negative sign */
+    way(4); way(2); way(2); way(2); way(1); /* decimal point */
+    way(6); for(unsigned j=0;j<5;j++) { way(1); } /* zeros */
+    way(5); way(5); way(5); way(2); way(1); /* 1 */
+    way(4); way(4); way(4); way(6); way(6); way(1); /* SAVE */
+    assert(fabsf(g_app_param.ground_h7+.000001f)<1e-12f);
+    hold(); snapshot("build/host/menu-camera-value.pgm"); back(); back(); back(); /* preserve all parent positions */
     attempts=saves; click(); click(); click(); hold(); assert(saves==attempts+1); /* save without inventing geometry */
     AppParam loaded; uint32_t sequence;
     assert(param_decode(record,&loaded,&sequence) && loaded.wheel_left_m==0 && !param_can_arm(&loaded,false));

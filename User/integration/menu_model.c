@@ -24,17 +24,22 @@ static const Field fields[] = {
     H("eff track mm", effective_track_m, 0, 1500),
     H("L wheel dia mm", wheel_left_m, 10, 300), H("R wheel dia mm", wheel_right_m, 10, 300),
     F("L counts/rev", counts_left, 1, 1000000), F("R counts/rev", counts_right, 1, 1000000),
-    H("cam offset mm", camera_forward_m, 0, 3000)
+    H("cam offset mm", camera_forward_m, 0, 3000),
+    F("ground_h0",ground_h0,-1000000,1000000), F("ground_h1",ground_h1,-1000000,1000000),
+    F("ground_h2",ground_h2,-1000000,1000000), F("ground_h3",ground_h3,-1000000,1000000),
+    F("ground_h4",ground_h4,-1000000,1000000), F("ground_h5",ground_h5,-1000000,1000000),
+    F("ground_h6",ground_h6,-1000000,1000000), F("ground_h7",ground_h7,-1000000,1000000)
 #undef H
 };
-static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","OK",".","0","SAVE","BACK"};
+static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","-",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
     switch (m->page) {
     case MENU_MAIN: return 3;
     case MENU_PARA: return 5;
     case MENU_HARDWARE: return 11;
-    case MENU_VISION: return 4;
+    case MENU_VISION: return 5;
+    case MENU_CAMERA_CAL: return 9;
     case MENU_PARAMS: return 13;
     case MENU_CONTROL: return 6;
     case MENU_KEYPAD: return 16;
@@ -44,7 +49,7 @@ unsigned menu_count(const MenuModel *m) {
 }
 const char *menu_title(const MenuModel *m) {
     static const char *const titles[] = {"V1.50 MAIN","para","vision","control parameters",
-        "control","number input","start / camera","image","motor test","hardware"};
+        "control","number input","start / camera","image","motor test","hardware","camera calib"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
 const char *menu_label(const MenuModel *m, unsigned i) {
@@ -57,7 +62,8 @@ const char *menu_label(const MenuModel *m, unsigned i) {
     case MENU_PARA: return para_items[i];
     case MENU_CONTROL: return control_items[i];
     case MENU_KEYPAD: return digits[i];
-    case MENU_VISION: return i == 3 ? "back" : fields[i].name;
+    case MENU_VISION: return i==4?"back":i==3?"camera calib":fields[i].name;
+    case MENU_CAMERA_CAL: return i==8?"back":fields[25+i].name;
     case MENU_PARAMS: return i == 12 ? "back" : fields[i + 3].name;
     case MENU_HARDWARE: return i==10?"back":fields[15+i].name;
     case MENU_LIVE: return i ? "back" : "stop";
@@ -82,6 +88,7 @@ MenuAction menu_back(MenuModel *m) {
     case MENU_MAIN: return MENU_NONE;
     case MENU_KEYPAD: return_to(m,m->parent); return MENU_NONE;
     case MENU_VISION: case MENU_PARAMS: case MENU_HARDWARE: return_to(m,MENU_PARA); return MENU_NONE;
+    case MENU_CAMERA_CAL: return_to(m,MENU_VISION); return MENU_NONE;
     case MENU_PARA: return_to(m,MENU_MAIN); return MENU_NONE;
     case MENU_CONTROL: case MENU_RACE_IMAGE: return_to(m,MENU_MAIN); return MENU_STOP;
     case MENU_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
@@ -102,6 +109,12 @@ MenuAction menu_confirm(MenuModel *m) {
         else return menu_back(m);
         break;
     case MENU_VISION:
+        if(i==3) { enter(m,MENU_CAMERA_CAL); break; }
+        if(i==4) return menu_back(m);
+        edit(m,i); break;
+    case MENU_CAMERA_CAL:
+        if(i==8) return menu_back(m);
+        edit(m,25+i); break;
     case MENU_PARAMS:
     case MENU_HARDWARE:
         if (i == menu_count(m) - 1) return menu_back(m);
@@ -123,7 +136,11 @@ MenuAction menu_confirm(MenuModel *m) {
             } else m->input_error = true;
         } else if (i == 3) { if (n) m->input[n-1] = 0; }
         else if (i == 7) m->input[0] = 0;
-        else if (i == 11) return MENU_APPLY;
+        else if (i == 11) {
+            if(m->input[0]=='-') memmove(m->input,m->input+1,n);
+            else if(n<sizeof(m->input)-1) { memmove(m->input+1,m->input,n+1); m->input[0]='-'; }
+            else m->input_error=MENU_INPUT_INVALID;
+        }
         else if (i == 14) return MENU_APPLY_SAVE;
         else if (i == 15) return menu_back(m);
         break;
@@ -179,6 +196,18 @@ void menu_float_text(char *out, unsigned size, float value) {
     if (!isfinite(value) || fabsf(value) > 1000000) { snprintf(out, size, "invalid"); return; }
     long milli = (long)(fabsf(value) * 1000 + .5f);
     snprintf(out, size, "%s%ld.%03ld", value < 0 ? "-" : "", milli / 1000, milli % 1000);
+}
+void menu_value_text(const MenuModel *m,const AppParam *p,char *out,unsigned size) {
+    float value=menu_param_value(m,p);
+    if(m->field<25 || m->field>=33) { menu_float_text(out,size,value); return; }
+    if(!isfinite(value)) { snprintf(out,size,"invalid"); return; }
+    if(value==0) { snprintf(out,size,"0"); return; }
+    float v=fabsf(value); int exponent=0;
+    while(v>=10) { v/=10; exponent++; }
+    while(v<1) { v*=10; exponent--; }
+    long digits=(long)(v*10000+.5f);
+    if(digits>=100000) { digits/=10; exponent++; }
+    snprintf(out,size,"%s%ld.%04lde%+03d",value<0?"-":"",digits/10000,digits%10000,exponent);
 }
 void vofa_pack(const ControlSnapshot *s, uint8_t out[20]) {
     _Static_assert(sizeof(float) == 4, "float32 required");

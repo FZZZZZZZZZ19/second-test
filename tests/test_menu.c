@@ -40,7 +40,7 @@ int main(void) {
     strcpy(m.input,"nan"); assert(!menu_apply_value(&m,&p));
     strcpy(m.input,"10001"); assert(!menu_apply_value(&m,&p));
     pick(&m,"BACK"); menu_confirm(&m); assert(m.page==MENU_VISION);
-    m.selected=3; menu_confirm(&m); assert(m.page==MENU_PARA);
+    m.selected=4; menu_confirm(&m); assert(m.page==MENU_PARA);
     m.selected=1; menu_confirm(&m); assert(m.page==MENU_PARAMS);
     menu_confirm(&m); strcpy(m.input,".5"); assert(menu_apply_value(&m,&p));
     assert(p.kp_left==.5f && p.kp_right==.5f);
@@ -65,11 +65,12 @@ int main(void) {
     way(&k,2); assert(k.selected==13);
     k.selected=10; way(&k,4); assert(k.selected==14);
     pick(&k,"CLR"); way(&k,1); assert(!k.input[0]);
-    pick(&k,"OK"); assert(way(&k,1)==MENU_APPLY);
+    pick(&k,"-"); way(&k,1); assert(!strcmp(k.input,"-"));
+    way(&k,1); assert(!k.input[0]);
     pick(&k,"BACK"); way(&k,1); assert(k.page==MENU_VISION && k.selected==0);
     way(&k,6); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
-    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE,MENU_HARDWARE};
-    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL,MENU_PARA};
+    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE,MENU_HARDWARE,MENU_CAMERA_CAL};
+    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL,MENU_PARA,MENU_VISION};
     for(unsigned j=0;j<sizeof pages/sizeof pages[0];j++) {
         menu_init(&k); k.page=pages[j]; k.parent=MENU_PARAMS;
         MenuAction a=way(&k,3);
@@ -95,6 +96,27 @@ int main(void) {
     menu_back(&h); assert(h.page==MENU_CONTROL && h.selected==2);
     h.selected=3; menu_confirm(&h); menu_back(&h); assert(h.selected==3);
     h.selected=5; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
+    menu_init(&h); h.selected=1; menu_confirm(&h); menu_confirm(&h);
+    h.selected=3; menu_confirm(&h); assert(h.page==MENU_CAMERA_CAL && menu_count(&h)==9);
+    AppParam calibration; param_defaults(&calibration);
+    for(unsigned j=0;j<8;j++) {
+        h.selected=j; menu_confirm(&h);
+        assert(h.page==MENU_KEYPAD && h.field==25+j);
+        strcpy(h.input,".000001"); pick(&h,"-"); menu_confirm(&h);
+        assert(!strcmp(h.input,"-.000001") && menu_apply_value(&h,&calibration));
+        assert(fabsf(menu_param_value(&h,&calibration)+.000001f)<1e-12f);
+        char value_text[16]; menu_value_text(&h,&calibration,value_text,sizeof value_text);
+        assert(!strcmp(value_text,"-1.0000e-06"));
+        pick(&h,"-"); menu_confirm(&h); assert(!strcmp(h.input,".000001"));
+        strcpy(h.input,"-"); assert(!menu_apply_value(&h,&calibration));
+        strcpy(h.input,"nan"); assert(!menu_apply_value(&h,&calibration));
+        menu_back(&h); assert(h.page==MENU_CAMERA_CAL && h.selected==j);
+    }
+    menu_back(&h); assert(h.page==MENU_VISION && h.selected==3);
+    menu_back(&h); assert(h.page==MENU_PARA && h.selected==0);
+    MenuModel positive; menu_init(&positive); positive.page=MENU_KEYPAD;
+    strcpy(positive.input,"1"); pick(&positive,"-"); menu_confirm(&positive);
+    assert(!menu_apply_value(&positive,&calibration)); /* gains remain nonnegative */
     ControlSnapshot s={0}; s.targets.left_mps=1; s.targets.right_mps=-2;
     s.feedback.speed_mps[0]=.5f; s.feedback.speed_mps[1]=0;
     uint8_t packet[20]; vofa_pack(&s,packet);

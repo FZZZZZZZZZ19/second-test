@@ -2,9 +2,9 @@
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
-当前补丁版本V1.50.6：para增加hardware硬件参数页，尺寸按mm输入、内部按米保存，包含车长、车宽、轴距、轮距、等效轮距、左右轮径、左右每轮计数和相机前向偏置。KEY1/BACK返回上级原入口，OK/SAVE后也回到原参数项。Flash升级schema5并兼容schema2/4，升级后实物读回原VOFA目标0.200保留。
+当前补丁版本V1.50.7：para → vision增加camera calib，独立编辑ground_h0～ground_h7。键盘原OK键改为负号-，切换输入正负，SAVE统一确认并写Flash；CLR清空、BACK/KEY1取消返回。相机系数用科学计数法显示小数值，原有硬件页、返回位置记忆和旧保存参数继续保留。
 
-V1.50基于主干V1.3，加入五向导航菜单与KEY1返回、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash86076B、RAM31596B。V1.50.6已完成目标板编程、校验和复位，实际五向键操作、Flash掉电和巡线仍待验证。**默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
+V1.50基于主干V1.3，加入五向导航菜单与KEY1返回、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash86692B、RAM31596B。V1.50.7已完成目标板编程、校验和复位，实际五向键操作、Flash掉电和巡线仍待验证。**默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
 
 ## 视觉与电控分层
 
@@ -45,7 +45,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 对应前提是主板 H3 与驱动板 CN5 同脚号直连。右路第3脚是 PH，第4脚是 EN。两板共地，编码器供电与输出电平核对3.3V系统。PH 的机械前进极性仍须实测。
 
-上电主菜单为 `start / para / control`。普通菜单用五向上/下选择、中键点按确认，KEY1点按返回上一级；数字键盘用四向移动、中键确认，增加SAVE直接保存。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉、电控和hardware硬件参数，数字键盘ok应用、save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
+上电主菜单为 `start / para / control`。普通菜单用五向上/下选择、中键点按确认，KEY1点按返回上一级；数字键盘用四向移动、中键确认，增加SAVE直接保存。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉、电控和hardware硬件参数，数字键盘SAVE保存，para也可save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
 
 重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash记录schema=5，兼容V1.3 schema=2和V1.50.0～.5 schema=4；未标定的零值可保存，但仍不能发车。
 
@@ -60,3 +60,5 @@ UART3 PB10(TX)接USB转TTL的RX并共地，使用3.3V逻辑。电脑选择对应
 来源和第三方修改见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [LICENSES](LICENSES/README.md)。
 
 V1.3的米制路径算法继续使用，坐标、标定与符号见[V1.3说明](docs/V1.3米制路径控制.md)。
+
+相机标定路径为para → vision → camera calib，八个系数按原数值输入；小系数科学计数显示，参数记录仍为schema5。详见[菜单说明](docs/V1.50屏幕菜单与调试.md)。

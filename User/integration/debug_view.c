@@ -86,19 +86,12 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     case MENU_CAMERA:
         note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
     case MENU_STOP: stop_all(s); break;
-    case MENU_APPLY:
     case MENU_APPLY_SAVE: {
         AppParam candidate=g_app_param;
-        bool save=a==MENU_APPLY_SAVE;
-        if(s->mode!=RUN_STATIC_DEBUG || ((!save || menu.input[0]) && !menu_apply_value(&menu,&candidate))) {
+        if(s->mode!=RUN_STATIC_DEBUG || (menu.input[0] && !menu_apply_value(&menu,&candidate))) {
             menu.input_error=MENU_INPUT_INVALID; note("bad value / stop"); break;
         }
-        if(save) {
-            if(!save_parameters(&candidate,s)) { menu.input_error=MENU_INPUT_SAVE_ERROR; break; }
-        } else {
-            BoardIrqToken token=board_irq_save(); g_app_param=candidate; board_irq_restore(token);
-            note("RAM set; save para");
-        }
+        if(!save_parameters(&candidate,s)) { menu.input_error=MENU_INPUT_SAVE_ERROR; break; }
         (void)menu_back(&menu);
         break;
     }
@@ -125,7 +118,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
     }
     if (menu.page != MENU_KEYPAD) line(1, message);
     if (menu.page == MENU_KEYPAD) {
-        menu_float_text(a, sizeof a, menu_param_value(&menu, &g_app_param));
+        menu_value_text(&menu,&g_app_param,a,sizeof a);
         snprintf(text, sizeof text, "old %s", a); line(1, text);
         snprintf(text, sizeof text, "new %s_", menu.input); line(2, text);
         if (menu.input_error) line(1, menu.input_error==MENU_INPUT_SAVE_ERROR?message:"invalid: edit again");
