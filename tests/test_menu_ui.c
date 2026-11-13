@@ -8,7 +8,7 @@ static uint32_t now, requests;
 static uint8_t key=7, record[APP_PARAM_RECORD_BYTES];
 static ControlSnapshot s;
 static unsigned resumes, images, saves, packets;
-static bool capture;
+static bool capture, save_ok=true;
 static unsigned char screen[128][160];
 static unsigned rgb_tiles, grid_cells;
 BoardIrqToken board_irq_save(void) { return 0; }
@@ -25,7 +25,7 @@ void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
 void app_control_init(void) {}
 bool side_encoder_init(void) { return true; }
 void motor_brake_zero(void) {}
-bool param_store_save(const AppParam *p) { saves++; return param_encode(p,saves,record); }
+bool param_store_save(const AppParam *p) { saves++; return save_ok && param_encode(p,saves,record); }
 void tft180_init(void) {}
 void tft180_set_dir(int d) { (void)d; }
 void tft180_set_font(int f) { assert(f==1); }
@@ -56,9 +56,10 @@ void uart_write_buffer(int uart,const uint8_t *p,unsigned len) { assert(uart==3 
 void pit_disable(int timer) { assert(timer==6); }
 void pit_ms_init(int timer,unsigned period) { assert(timer==6 && period==5); }
 static void poll(unsigned dt) { now+=dt; debug_view_poll(&s); }
-static void click(void) { key=3; poll(1); poll(40); key=7; poll(50); poll(40); }
-static void hold(void) { key=3; poll(1); poll(40); poll(800); key=7; poll(1); poll(40); }
 static void way(uint8_t code) { key=code; poll(1); poll(40); key=7; poll(1); poll(40); }
+static void click(void) { way(4); }
+static void hold(void) { way(1); }
+static void back(void) { way(3); }
 int main(void) {
     param_defaults(&g_app_param); s.mode=RUN_STATIC_DEBUG; s.config_ok=true;
     assert(camera_frame_init()); assert(camera_frame_set_running(false)); debug_view_init(); poll(100);
@@ -72,7 +73,7 @@ int main(void) {
     FrameView f; VisionFeatures v={0}; assert(camera_frame_acquire(&f));
     debug_view_frame(&f,&s,&v); assert(images==1);
     camera_frame_release(f.frame_id); assert(capture);
-    hold(); assert(!capture && (requests&REQ_HALT));
+    back(); assert(!capture && (requests&REQ_HALT));
     unsigned count=resumes; camera_frame_on_done_isr(); assert(!camera_frame_acquire(&f) && count==resumes);
     s.mode=RUN_STATIC_DEBUG; requests=0;
     click(); hold(); snapshot("build/host/menu-para.pgm"); /* para */
@@ -84,23 +85,35 @@ int main(void) {
     way(4); way(4); /* OK */
     way(1); /* apply -> vision */
     assert(g_app_param.lateral_kp==1);
-    hold(); /* reopen omega Kp */
-    way(6); way(6); way(6); way(4); way(4); way(4); way(1); /* BACK */
+    hold(); /* reopen omega Kp, input 2 and SAVE */
+    way(6); way(1); way(4); way(4); way(4); way(6);
+    save_ok=false; unsigned attempts=saves;
+    way(1); assert(saves==attempts+1 && g_app_param.lateral_kp==1); /* failure leaves RAM unchanged */
+    snapshot("build/host/menu-save-error.pgm");
+    save_ok=true; poll(600); attempts=saves;
+    key=1; poll(1); poll(40);
+    assert(saves==attempts+1 && g_app_param.lateral_kp==2);
+    poll(1500); assert(saves==attempts+1); /* held center cannot save or enter again after clock reset */
+    key=7; poll(1); poll(40);
+    AppParam from_save; uint32_t saved_seq;
+    assert(param_decode(record,&from_save,&saved_seq) && from_save.lateral_kp==2);
+    hold(); way(1); back(); /* type but KEY1 cancels */
+    assert(g_app_param.lateral_kp==2 && saves==attempts+1);
     click(); click(); click(); hold(); /* vision back -> para */
-    click(); click(); hold(); assert(saves==1); /* save without inventing geometry */
+    attempts=saves; click(); click(); hold(); assert(saves==attempts+1); /* save without inventing geometry */
     AppParam loaded; uint32_t sequence;
     assert(param_decode(record,&loaded,&sequence) && loaded.wheel_left_m==0 && !param_can_arm(&loaded,false));
     click(); hold(); /* para back -> main */
     click(); click(); hold(); /* control */
     click(); click(); hold(); /* vofa blocked without target/calibration */
     assert(!(requests&REQ_SPEED_DEBUG));
-    hold(); /* live stop -> control */
+    back(); /* KEY1 live back stops -> control */
     g_app_param.wheel_left_m=g_app_param.wheel_right_m=.06f;
     g_app_param.track_m=.15f; g_app_param.axle_m=.1f; g_app_param.counts_left=g_app_param.counts_right=100;
     g_app_param.calibration_mask=7; g_app_param.debug_speed_mps=.1f; s.feedback.valid=true;
     click(); click(); hold(); assert(requests&REQ_SPEED_DEBUG);
     poll(20); assert(packets>0); snapshot("build/host/menu-live.pgm");
-    hold(); count=packets; poll(100); assert(packets==count && !capture);
+    back(); count=packets; poll(100); assert(packets==count && !capture);
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

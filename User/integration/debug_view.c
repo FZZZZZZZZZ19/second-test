@@ -10,7 +10,7 @@ static MenuModel menu;
 static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms, quiet_since;
 static bool vofa_enabled, start_pending;
-static char message[27] = "KEY1 click / hold";
+static char message[27] = "U/D OK; K1 back";
 static char row_cache[8][21];
 static uint8_t row_style[8];
 static bool row_valid[8];
@@ -48,6 +48,23 @@ void debug_view_init(void) {
     clear_screen();
     /* UART3 is kept exclusively binary once VOFA is enabled. */
 }
+static bool save_parameters(const AppParam *candidate,const ControlSnapshot *s) {
+    if (!stationary(s) || board_time_ms()-quiet_since<500 || !param_storable(candidate)) {
+        note("save: wait/check"); return false;
+    }
+    (void)camera_frame_set_running(false);
+    motor_brake_zero(); pit_disable(TIM6_PIT);
+    bool ok=param_store_save(candidate);
+    if(ok) {
+        BoardIrqToken token=board_irq_save(); g_app_param=*candidate; board_irq_restore(token);
+    }
+    board_clock_init(); (void)side_encoder_init(); app_control_init();
+    pit_ms_init(TIM6_PIT,APP_CONTROL_PERIOD_MS);
+    /* Keep the current pressed key stable across clock reset: no second save until release. */
+    menu.candidate_ms=0; quiet_since=0; last_screen=0; last_vofa=0;
+    note(ok?"saved to flash":"FLASH SAVE FAILED");
+    return ok;
+}
 static void action(MenuAction a, const ControlSnapshot *s) {
     switch (a) {
     case MENU_START:
@@ -69,34 +86,23 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     case MENU_CAMERA:
         note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
     case MENU_STOP: stop_all(s); break;
-    case MENU_APPLY: {
-        AppParam candidate = g_app_param;
-        if (s->mode != RUN_STATIC_DEBUG || !menu_apply_value(&menu, &candidate)) {
-            menu.input_error = true; note("bad value / stop"); break;
+    case MENU_APPLY:
+    case MENU_APPLY_SAVE: {
+        AppParam candidate=g_app_param;
+        bool save=a==MENU_APPLY_SAVE;
+        if(s->mode!=RUN_STATIC_DEBUG || ((!save || menu.input[0]) && !menu_apply_value(&menu,&candidate))) {
+            menu.input_error=MENU_INPUT_INVALID; note("bad value / stop"); break;
         }
-        BoardIrqToken token = board_irq_save();
-        g_app_param = candidate;
-        board_irq_restore(token);
-        menu.selected = 15;
-        (void)menu_confirm(&menu); /* keypad back -> parent, no motor command */
-        note("RAM set; save para"); break;
+        if(save) {
+            if(!save_parameters(&candidate,s)) { menu.input_error=MENU_INPUT_SAVE_ERROR; break; }
+        } else {
+            BoardIrqToken token=board_irq_save(); g_app_param=candidate; board_irq_restore(token);
+            note("RAM set; save para");
+        }
+        (void)menu_back(&menu);
+        break;
     }
-    case MENU_SAVE: {
-        if (!stationary(s) || board_time_ms() - quiet_since < 500 || !param_storable(&g_app_param)) {
-            note("save: wait/check"); break; }
-        (void)camera_frame_set_running(false);
-        motor_brake_zero();
-        pit_disable(TIM6_PIT);
-        bool ok = param_store_save(&g_app_param);
-        /* Flash can stall longer than the 16-bit microsecond clock wrap. */
-        board_clock_init();
-        (void)side_encoder_init();
-        app_control_init();
-        pit_ms_init(TIM6_PIT, APP_CONTROL_PERIOD_MS);
-        menu.candidate = menu.stable = 3;
-        menu.held = true; last_screen = 0; last_vofa = 0;
-        note(ok ? "saved to flash" : "FLASH SAVE FAILED"); break;
-    }
+    case MENU_SAVE: (void)save_parameters(&g_app_param,s); break;
     default: break;
     }
 }
@@ -109,12 +115,12 @@ static void render(const ControlSnapshot *s, uint32_t now) {
             snprintf(text, sizeof text, "%c%s", i == menu.selected ? '>' : ' ', menu_label(&menu,i));
             styled_line(1+i*2,text,2,i==menu.selected);
         }
-        line(7, "K1:next HOLD:ok"); return;
+        line(7, "U/D OK K1:BACK"); return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
         line(1, message);
         if (now - last_image > 1000) line(4, "no fresh frame");
-        snprintf(text, sizeof text, "M%u >back HOLD", (unsigned)s->mode);
+        snprintf(text, sizeof text, "M%u >back OK/K1", (unsigned)s->mode);
         styled_line(7,text,1,true); return;
     }
     if (menu.page != MENU_KEYPAD) line(1, message);
@@ -122,7 +128,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         menu_float_text(a, sizeof a, menu_param_value(&menu, &g_app_param));
         snprintf(text, sizeof text, "old %s", a); line(1, text);
         snprintf(text, sizeof text, "new %s_", menu.input); line(2, text);
-        if (menu.input_error) line(1, "invalid: edit again");
+        if (menu.input_error) line(1, menu.input_error==MENU_INPUT_SAVE_ERROR?message:"invalid: edit again");
         if (grid_selected != menu.selected) {
             for (unsigned i=0; i<16; i++) {
                 if (grid_selected<16 && i!=grid_selected && i!=menu.selected) continue;
@@ -154,7 +160,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
             styled_line(row + 2,text,1,i==menu.selected);
         }
     }
-    line(7, "K1:next HOLD:ok");
+    line(7, "U/D OK K1:BACK");
 }
 void debug_view_poll(const ControlSnapshot *s) {
     uint32_t now = board_time_ms();

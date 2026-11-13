@@ -4,21 +4,22 @@
 typedef enum { MENU_MAIN, MENU_PARA, MENU_VISION, MENU_PARAMS, MENU_CONTROL,
                MENU_KEYPAD, MENU_RACE_IMAGE, MENU_IMAGE, MENU_LIVE } MenuPage;
 typedef enum { MENU_NONE, MENU_START, MENU_RUN30, MENU_VOFA, MENU_STOP,
-               MENU_CAMERA, MENU_SAVE, MENU_APPLY } MenuAction;
+               MENU_CAMERA, MENU_SAVE, MENU_APPLY, MENU_APPLY_SAVE } MenuAction;
+typedef enum { MENU_INPUT_OK, MENU_INPUT_INVALID, MENU_INPUT_SAVE_ERROR } MenuInputError;
 typedef struct {
     MenuPage page, parent;
     unsigned selected, field;
     char input[16];
-    bool input_error;
+    MenuInputError input_error;
     uint8_t candidate, stable;
-    uint32_t candidate_ms, pressed_ms;
-    bool held;
+    uint32_t candidate_ms;
 } MenuModel;
 void menu_init(MenuModel *m);
 unsigned menu_count(const MenuModel *m);
 const char *menu_label(const MenuModel *m, unsigned index);
 const char *menu_title(const MenuModel *m);
 MenuAction menu_confirm(MenuModel *m);
+MenuAction menu_back(MenuModel *m);
 MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now);
 bool menu_apply_value(const MenuModel *m, AppParam *p);
 float menu_param_value(const MenuModel *m, const AppParam *p);

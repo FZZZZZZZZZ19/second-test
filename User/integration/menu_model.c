@@ -19,7 +19,7 @@ static const Field fields[] = {
     F("normal speed m/s", speed_normal, 0, 5),
     F("left FF", ff_left, 0, 10000), F("right FF", ff_right, 0, 10000)
 };
-static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","OK",".","0","","BACK"};
+static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","OK",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
     switch (m->page) {
@@ -59,6 +59,17 @@ static void edit(MenuModel *m, unsigned field) {
     m->parent = m->page; m->field = field; m->input[0] = 0; m->input_error = false;
     enter(m, MENU_KEYPAD);
 }
+MenuAction menu_back(MenuModel *m) {
+    switch(m->page) {
+    case MENU_MAIN: return MENU_NONE;
+    case MENU_KEYPAD: enter(m,m->parent); return MENU_NONE;
+    case MENU_VISION: case MENU_PARAMS: enter(m,MENU_PARA); return MENU_NONE;
+    case MENU_PARA: enter(m,MENU_MAIN); return MENU_NONE;
+    case MENU_CONTROL: case MENU_RACE_IMAGE: enter(m,MENU_MAIN); return MENU_STOP;
+    case MENU_IMAGE: case MENU_LIVE: enter(m,MENU_CONTROL); return MENU_STOP;
+    }
+    return MENU_NONE;
+}
 MenuAction menu_confirm(MenuModel *m) {
     unsigned i = m->selected;
     switch (m->page) {
@@ -92,7 +103,8 @@ MenuAction menu_confirm(MenuModel *m) {
         } else if (i == 3) { if (n) m->input[n-1] = 0; }
         else if (i == 7) m->input[0] = 0;
         else if (i == 11) return MENU_APPLY;
-        else if (i == 15) enter(m, m->parent);
+        else if (i == 14) return MENU_APPLY_SAVE;
+        else if (i == 15) return menu_back(m);
         break;
     }
     case MENU_RACE_IMAGE: enter(m, MENU_MAIN); return MENU_STOP;
@@ -102,36 +114,24 @@ MenuAction menu_confirm(MenuModel *m) {
 }
 MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now) {
     bool keypad = m->page == MENU_KEYPAD;
-    /* Installed switch/screen orientation: up=5 down=4 left=2 right=6. Center=1, none=7. */
-    if (keypad) code = (code==1 || code==2 || code==4 || code==5 || code==6) ? code : 7;
-    else code = code == 3 ? 3 : 7;
+    /* Installed orientation: up=5 down=4 left=2 right=6 center=1 KEY1/back=3. */
+    if (!(code==1 || code==3 || code==4 || code==5 || (keypad && (code==2 || code==6)))) code=7;
     if (code != m->candidate) { m->candidate = code; m->candidate_ms = now; }
-    if (now - m->candidate_ms >= 40 && m->stable != code) {
-        m->stable = code;
-        if (keypad) {
-            if (code == 7) return MENU_NONE;
-            m->held = true; /* consume release even if center leaves the keypad */
-            if (code == 1) return menu_confirm(m);
-            int dx = code==6 ? 1 : code==2 ? -1 : 0;
-            int dy = code==4 ? 1 : code==5 ? -1 : 0;
-            int x=(int)(m->selected%4), y=(int)(m->selected/4);
-            for (unsigned skip=0; skip<2; skip++) {
-                x+=dx; y+=dy;
-                if (x<0 || x>3 || y<0 || y>3) break;
-                unsigned next=(unsigned)(y*4+x);
-                if (next!=14) { m->selected=next; break; }
-            }
-            return MENU_NONE;
-        }
-        if (code == 3) { m->pressed_ms = now; m->held = false; }
-        else if (!m->held) { m->selected = (m->selected + 1) % menu_count(m); }
-    }
-    if (!keypad && m->stable == 3 && m->candidate == 3 && !m->held && now - m->pressed_ms >= 800) {
-        m->held = true;
-        return menu_confirm(m);
-    }
+    if (now - m->candidate_ms < 40 || m->stable == code) return MENU_NONE;
+    m->stable=code;
+    if(code==7) return MENU_NONE;
+    if(code==3) return menu_back(m);
+    if(code==1) return menu_confirm(m);
+    if(keypad) {
+        int x=(int)(m->selected%4), y=(int)(m->selected/4);
+        x+=code==6?1:code==2?-1:0;
+        y+=code==4?1:code==5?-1:0;
+        if(x>=0 && x<4 && y>=0 && y<4) m->selected=(unsigned)(y*4+x);
+    } else if(code==4) m->selected=(m->selected+1)%menu_count(m);
+    else if(code==5) m->selected=(m->selected+menu_count(m)-1)%menu_count(m);
     return MENU_NONE;
 }
+
 float menu_param_value(const MenuModel *m, const AppParam *p) {
     float value; memcpy(&value, (const char *)p + fields[m->field].offset, sizeof value); return value;
 }

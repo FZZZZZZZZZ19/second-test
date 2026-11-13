@@ -21,18 +21,14 @@ static MenuAction way(MenuModel *m,uint8_t key) {
 int main(void) {
     MenuModel m; menu_init(&m);
     assert(menu_count(&m)==3 && !strcmp(menu_label(&m,0),"start"));
-    assert(menu_key(&m,3,10)==MENU_NONE);
+    assert(menu_key(&m,4,10)==MENU_NONE);
     menu_key(&m,7,25); menu_key(&m,7,70); assert(m.selected==0); /* bounce */
-    menu_key(&m,3,100); menu_key(&m,3,140);
-    menu_key(&m,7,200); menu_key(&m,7,240); assert(m.selected==1);
-    menu_key(&m,3,300); menu_key(&m,3,340);
-    menu_key(&m,3,1140); assert(m.page==MENU_PARA);
-
-    menu_key(&m,3,2500); assert(m.page==MENU_PARA); /* hold cannot repeat */
-    menu_key(&m,7,2510); menu_key(&m,7,2550); assert(m.selected==0); /* no click after hold */
-    menu_key(&m,0,2600); menu_key(&m,0,2700); assert(m.selected==0);
-    menu_confirm(&m); assert(m.page==MENU_VISION);
-    menu_confirm(&m); assert(m.page==MENU_KEYPAD);
+    way(&m,3); assert(m.page==MENU_MAIN && m.selected==0); /* KEY1 never selects */
+    way(&m,5); assert(m.selected==2); way(&m,4); assert(m.selected==0);
+    way(&m,4); assert(m.selected==1); way(&m,6); assert(m.selected==1);
+    way(&m,1); assert(m.page==MENU_PARA && m.selected==0);
+    way(&m,1); assert(m.page==MENU_VISION);
+    way(&m,1); assert(m.page==MENU_KEYPAD);
     AppParam p={0}; p.speed_limit_mps=.4f;
     assert(!menu_apply_value(&m,&p));
     pick(&m,"."); menu_confirm(&m); pick(&m,"2"); menu_confirm(&m);
@@ -61,14 +57,24 @@ int main(void) {
     way(&k,6); assert(k.selected==1); way(&k,4); assert(k.selected==5);
     way(&k,2); assert(k.selected==4); way(&k,5); assert(k.selected==0);
     way(&k,1); assert(!strcmp(k.input,"1")); /* held center only once */
-    way(&k,3); assert(!strcmp(k.input,"1") && k.selected==0); /* KEY1 ignored here */
-    k.selected=13; way(&k,6); assert(k.selected==15); /* skip blank */
+    way(&k,3); assert(k.page==MENU_VISION); /* KEY1 cancels keypad */
+    way(&k,1); assert(k.page==MENU_KEYPAD && !k.input[0]);
+    k.selected=13; way(&k,6); assert(k.selected==14); /* SAVE occupies old blank */
+    assert(way(&k,1)==MENU_APPLY_SAVE);
     way(&k,2); assert(k.selected==13);
-    k.selected=10; way(&k,4); assert(k.selected==10); /* blank at bottom, stay */
+    k.selected=10; way(&k,4); assert(k.selected==14);
     pick(&k,"CLR"); way(&k,1); assert(!k.input[0]);
     pick(&k,"OK"); assert(way(&k,1)==MENU_APPLY);
     pick(&k,"BACK"); way(&k,1); assert(k.page==MENU_VISION && k.selected==0);
     way(&k,6); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
+    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE};
+    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL};
+    for(unsigned j=0;j<sizeof pages/sizeof pages[0];j++) {
+        menu_init(&k); k.page=pages[j]; k.parent=MENU_PARAMS;
+        MenuAction a=way(&k,3);
+        assert(k.page==parents[j] && k.selected==0);
+        assert(a==((j==4 || j>=6)?MENU_STOP:MENU_NONE));
+    }
     ControlSnapshot s={0}; s.targets.left_mps=1; s.targets.right_mps=-2;
     s.feedback.speed_mps[0]=.5f; s.feedback.speed_mps[1]=0;
     uint8_t packet[20]; vofa_pack(&s,packet);
@@ -90,6 +96,6 @@ int main(void) {
     assert(param_decode(record,&q,&seq) && q.debug_speed_mps==0 && q.kp_left==p.kp_left);
     put32(record+4,3); put32(record+248,app_crc32(record,248));
     assert(!param_decode(record,&q,&seq));
-    puts("PASS: KEY1 debounce/hold, menu/back, keypad validation, paired gains, VOFA bytes, Flash migration");
+    puts("PASS: five-way menu selection, KEY1 back, keypad SAVE, keypad validation, paired gains, VOFA bytes, Flash migration");
     return 0;
 }
