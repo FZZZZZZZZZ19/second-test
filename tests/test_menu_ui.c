@@ -36,6 +36,10 @@ void tft180_show_rgb565_image(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w
     rgb_tiles++;
     for(unsigned j=0;j<dh;j++)for(unsigned i=0;i<dw;i++) screen[y+j][x+i]=p[(j*h/dh)*w+i*w/dw]==0?0:255;
 }
+void tft180_draw_line(uint16_t x,uint16_t y,uint16_t x2,uint16_t y2,uint16_t color) {
+    assert(x<160 && x2<160 && y<128 && y2<128 && (x==x2 || y==y2));
+    for(unsigned j=y;j<=y2;j++)for(unsigned i=x;i<=x2;i++) screen[j][i]=color?255:0;
+}
 static void snapshot(const char *path) {
     FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n160 128\n255\n");
     assert(fwrite(screen,1,sizeof screen,f)==sizeof screen); fclose(f);
@@ -50,6 +54,7 @@ void pit_ms_init(int timer,unsigned period) { assert(timer==6 && period==5); }
 static void poll(unsigned dt) { now+=dt; debug_view_poll(&s); }
 static void click(void) { key=3; poll(1); poll(40); key=7; poll(50); poll(40); }
 static void hold(void) { key=3; poll(1); poll(40); poll(800); key=7; poll(1); poll(40); }
+static void way(uint8_t code) { key=code; poll(1); poll(40); key=7; poll(1); poll(40); }
 int main(void) {
     param_defaults(&g_app_param); s.mode=RUN_STATIC_DEBUG; s.config_ok=true;
     assert(camera_frame_init()); assert(camera_frame_set_running(false)); debug_view_init(); poll(100);
@@ -68,8 +73,15 @@ int main(void) {
     s.mode=RUN_STATIC_DEBUG; requests=0;
     click(); hold(); snapshot("build/host/menu-para.pgm"); /* para */
     hold(); hold(); snapshot("build/host/menu-keypad.pgm"); /* vision -> omega Kp */
-    for(unsigned i=0;i<13;i++) { click(); }
-    hold(); /* keypad back */
+    unsigned tile_count=rgb_tiles; poll(100); assert(tile_count==rgb_tiles);
+    way(2); poll(100); assert(rgb_tiles>tile_count); /* grid selection repaint */
+    way(6); way(1); /* input 1 */
+    way(2); way(2); way(2); /* DEL */
+    way(5); way(5); /* OK */
+    way(1); /* apply -> vision */
+    assert(g_app_param.lateral_kp==1);
+    hold(); /* reopen omega Kp */
+    way(2); way(2); way(2); way(5); way(5); way(5); way(1); /* BACK */
     click(); click(); click(); hold(); /* vision back -> para */
     click(); click(); hold(); assert(saves==1); /* save without inventing geometry */
     AppParam loaded; uint32_t sequence;

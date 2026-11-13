@@ -20,3 +20,25 @@ void menu_font_text(unsigned y, const char *text, unsigned scale, bool selected)
                                 8,16,(uint16_t)(8*scale),(uint16_t)(16*scale),0);
     }
 }
+
+void menu_font_cell(unsigned x,unsigned y,unsigned width,unsigned height,const char *text,bool selected) {
+    if (!text || !width || height<16 || x+width>160 || y+height>128) return;
+    unsigned n=0;
+    while (text[n] && n<width/8) n++;
+    uint16_t tile[8*16];
+    for(unsigned j=0;j<8*16;j++) tile[j]=selected?0x0000:0xffff;
+    tft180_show_rgb565_image((uint16_t)x,(uint16_t)y,tile,8,16,(uint16_t)width,(uint16_t)height,0);
+    for(unsigned c=0;c<n;c++) {
+        unsigned char glyph=(unsigned char)text[c];
+        if(glyph<32 || glyph>126) glyph='?';
+        for(unsigned row=0;row<16;row++)for(unsigned col=0;col<8;col++) {
+            bool ink=(menu_glyphs[glyph-32][row] & (0x80u>>col))!=0;
+            tile[row*8+col]=ink!=selected?0x0000:0xffff;
+        }
+        tft180_show_rgb565_image((uint16_t)(x+(width-n*8)/2+c*8),(uint16_t)(y+(height-16)/2),tile,8,16,8,16,0);
+    }
+    tft180_draw_line((uint16_t)x,(uint16_t)y,(uint16_t)(x+width-1),(uint16_t)y,0);
+    tft180_draw_line((uint16_t)x,(uint16_t)(y+height-1),(uint16_t)(x+width-1),(uint16_t)(y+height-1),0);
+    tft180_draw_line((uint16_t)x,(uint16_t)y,(uint16_t)x,(uint16_t)(y+height-1),0);
+    tft180_draw_line((uint16_t)(x+width-1),(uint16_t)y,(uint16_t)(x+width-1),(uint16_t)(y+height-1),0);
+}

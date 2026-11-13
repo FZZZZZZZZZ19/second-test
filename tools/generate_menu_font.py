@@ -10,7 +10,7 @@ font = ImageFont.truetype(a.font, 16)
 rows = []
 for code in range(32, 127):
     tile = Image.new('L', (10, 16))
-    ImageDraw.Draw(tile).text((0, -1), chr(code), font=font, fill=255)
+    ImageDraw.Draw(tile).text((0, -3), chr(code), font=font, fill=255)
     tile = tile.resize((8, 16), Image.Resampling.LANCZOS)
     rows.append([sum((1 << (7-x)) for x in range(8) if tile.getpixel((x,y)) >= 100) for y in range(16)])
 out = Path(__file__).resolve().parents[1] / 'User/integration/menu_font_data.h'

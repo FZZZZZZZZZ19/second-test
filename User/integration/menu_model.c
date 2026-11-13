@@ -19,7 +19,7 @@ static const Field fields[] = {
     F("normal speed m/s", speed_normal, 0, 5),
     F("left FF", ff_left, 0, 10000), F("right FF", ff_right, 0, 10000)
 };
-static const char *const digits[] = {"0","1","2","3","4","5","6","7","8","9",".","del","ok","back"};
+static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","OK",".","0","","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
     switch (m->page) {
@@ -28,7 +28,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_VISION: return 4;
     case MENU_PARAMS: return 13;
     case MENU_CONTROL: return 6;
-    case MENU_KEYPAD: return 14;
+    case MENU_KEYPAD: return 16;
     case MENU_LIVE: return 2;
     default: return 1;
     }
@@ -84,13 +84,15 @@ MenuAction menu_confirm(MenuModel *m) {
     case MENU_KEYPAD: {
         size_t n = strlen(m->input);
         m->input_error = false;
-        if (i < 11) {
-            if (n < sizeof(m->input) - 1 && (i != 10 || !strchr(m->input, '.'))) {
-                m->input[n] = i == 10 ? '.' : (char)('0' + i); m->input[n + 1] = 0;
+        const char *key = menu_label(m,i);
+        if ((key[0] >= '0' && key[0] <= '9') || key[0] == '.') {
+            if (n < sizeof(m->input) - 1 && (key[0] != '.' || !strchr(m->input, '.'))) {
+                m->input[n] = key[0]; m->input[n+1] = 0;
             } else m->input_error = true;
-        } else if (i == 11) { if (n) m->input[n - 1] = 0; }
-        else if (i == 12) return MENU_APPLY;
-        else enter(m, m->parent);
+        } else if (i == 3) { if (n) m->input[n-1] = 0; }
+        else if (i == 7) m->input[0] = 0;
+        else if (i == 11) return MENU_APPLY;
+        else if (i == 15) enter(m, m->parent);
         break;
     }
     case MENU_RACE_IMAGE: enter(m, MENU_MAIN); return MENU_STOP;
@@ -99,15 +101,32 @@ MenuAction menu_confirm(MenuModel *m) {
     return MENU_NONE;
 }
 MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now) {
-    /* Only KEY1 (encoded 3). Other physical keys are treated as released. */
-    code = code == 3 ? 3 : 7;
+    bool keypad = m->page == MENU_KEYPAD;
+    /* 74HC148: up=4 down=5 left=6 right=2 center=1; none=7. */
+    if (keypad) code = (code==1 || code==2 || code==4 || code==5 || code==6) ? code : 7;
+    else code = code == 3 ? 3 : 7;
     if (code != m->candidate) { m->candidate = code; m->candidate_ms = now; }
     if (now - m->candidate_ms >= 40 && m->stable != code) {
         m->stable = code;
+        if (keypad) {
+            if (code == 7) return MENU_NONE;
+            m->held = true; /* consume release even if center leaves the keypad */
+            if (code == 1) return menu_confirm(m);
+            int dx = code==2 ? 1 : code==6 ? -1 : 0;
+            int dy = code==5 ? 1 : code==4 ? -1 : 0;
+            int x=(int)(m->selected%4), y=(int)(m->selected/4);
+            for (unsigned skip=0; skip<2; skip++) {
+                x+=dx; y+=dy;
+                if (x<0 || x>3 || y<0 || y>3) break;
+                unsigned next=(unsigned)(y*4+x);
+                if (next!=14) { m->selected=next; break; }
+            }
+            return MENU_NONE;
+        }
         if (code == 3) { m->pressed_ms = now; m->held = false; }
         else if (!m->held) { m->selected = (m->selected + 1) % menu_count(m); }
     }
-    if (m->stable == 3 && m->candidate == 3 && !m->held && now - m->pressed_ms >= 800) {
+    if (!keypad && m->stable == 3 && m->candidate == 3 && !m->held && now - m->pressed_ms >= 800) {
         m->held = true;
         return menu_confirm(m);
     }

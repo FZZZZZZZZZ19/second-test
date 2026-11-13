@@ -2,9 +2,9 @@
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
-当前补丁版本V1.50.1：主菜单16×32大字，子菜单/数据显示8×16粗黑体风格字，黑白高对比，选中项反白。子菜单每屏五项，数字键盘当前键放大显示；KEY1操作不变。已完成目标板编程、校验和复位，实际显示清晰度与按键操作仍待实物确认。
+当前补丁版本V1.50.2：主菜单16×32大字，子菜单/数据显示8×16粗黑体风格字，黑白高对比，选中项反白。普通菜单继续使用KEY1，数字输入独立为4×4键盘页，五向开关上/下/左/右移动、中键点按确认。键盘提供0～9、小数点、DEL删除、CLR清空、OK应用、BACK取消，空白格不可选。
 
-V1.50基于主干V1.3，加入KEY1单键菜单、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash83376B、RAM31572B。**尚未上板验证，默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
+V1.50基于主干V1.3，加入KEY1单键菜单、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash84584B、RAM31580B。V1.50.2已完成目标板编程、校验和复位，实际五向键操作、Flash掉电和巡线仍待验证。**默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
 
 ## 视觉与电控分层
 
@@ -45,7 +45,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 对应前提是主板 H3 与驱动板 CN5 同脚号直连。右路第3脚是 PH，第4脚是 EN。两板共地，编码器供电与输出电平核对3.3V系统。PH 的机械前进极性仍须实测。
 
-上电主菜单为 `start / para / control`。只用KEY1：点按松手下移，长按800ms确认，每个子菜单都有back，其余六键不执行操作。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉和电控，数字键盘ok应用、save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
+上电主菜单为 `start / para / control`。普通菜单用KEY1：点按松手下移，长按800ms确认，每个子菜单都有back；数字键盘页用五向键移动、中键点按确认。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉和电控，数字键盘ok应用、save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
 
 重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash记录schema=4，兼容V1.3 schema=2；未标定的零值可保存，但仍不能发车。
 

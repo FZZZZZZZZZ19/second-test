@@ -12,6 +12,7 @@ void tft180_init(void);
 void tft180_set_dir(int d);
 void tft180_set_font(int f);
 void tft180_clear(void);
+void tft180_draw_line(uint16_t x,uint16_t y,uint16_t x2,uint16_t y2,uint16_t color);
 void tft180_set_color(uint16_t pen,uint16_t bg);
 void tft180_show_rgb565_image(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t color_mode);
 void tft180_show_string(uint16_t x, uint16_t y, const char *s);

@@ -14,7 +14,8 @@ static char message[27] = "KEY1 click / hold";
 static char row_cache[8][21];
 static uint8_t row_style[8];
 static bool row_valid[8];
-static void clear_screen(void) { tft180_clear(); memset(row_valid, 0, sizeof row_valid); }
+static unsigned grid_selected = 16;
+static void clear_screen(void) { tft180_clear(); memset(row_valid, 0, sizeof row_valid); grid_selected = 16; }
 static void styled_line(unsigned row, const char *text, unsigned scale, bool selected) {
     if (row >= 8 || row*16 + scale*16 > 128) return;
     char clipped[21];
@@ -76,7 +77,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         BoardIrqToken token = board_irq_save();
         g_app_param = candidate;
         board_irq_restore(token);
-        menu.selected = 13;
+        menu.selected = 15;
         (void)menu_confirm(&menu); /* keypad back -> parent, no motor command */
         note("RAM set; save para"); break;
     }
@@ -121,10 +122,16 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         menu_float_text(a, sizeof a, menu_param_value(&menu, &g_app_param));
         snprintf(text, sizeof text, "old %s", a); line(1, text);
         snprintf(text, sizeof text, "new %s_", menu.input); line(2, text);
-        line(3, menu.input_error ? "INVALID: edit/back" : "0..9 . del ok back");
-        snprintf(text, sizeof text, "key %u/14", menu.selected+1); line(4,text);
-        snprintf(text, sizeof text, "[%s]", menu_label(&menu, menu.selected));
-        styled_line(5,text,2,true);
+        if (menu.input_error) line(1, "invalid: edit again");
+        if (grid_selected != menu.selected) {
+            for (unsigned i=0; i<16; i++) {
+                if (grid_selected<16 && i!=grid_selected && i!=menu.selected) continue;
+                menu_font_cell((i%4)*40,48+(i/4)*20,40,20,
+                               menu_label(&menu,i),i==menu.selected);
+            }
+            grid_selected=menu.selected;
+        }
+        return;
     } else if (menu.page == MENU_LIVE) {
         snprintf(text,sizeof text,"%s M%u E%u F%u", vofa_enabled ? "VOFA" : "test",
                  (unsigned)s->mode,s->feedback.valid,(unsigned)s->reason); line(0,text);
