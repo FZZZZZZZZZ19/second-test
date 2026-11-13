@@ -117,13 +117,18 @@ int main(void) {
     MenuModel positive; menu_init(&positive); positive.page=MENU_KEYPAD;
     strcpy(positive.input,"1"); pick(&positive,"-"); menu_confirm(&positive);
     assert(!menu_apply_value(&positive,&calibration)); /* gains remain nonnegative */
-    ControlSnapshot s={0}; s.targets.left_mps=1; s.targets.right_mps=-2;
+    ControlSnapshot s={0}; s.mode=RUN_SPEED_DEBUG; s.feedback.valid=true; s.targets.left_mps=1; s.targets.right_mps=-2;
     s.feedback.speed_mps[0]=.5f; s.feedback.speed_mps[1]=0;
-    uint8_t packet[20]; vofa_pack(&s,packet);
+    uint8_t packet[20]; vofa_pack(&s,.2f,packet);
     const uint8_t expected[20]={0,0,0x80,0x3f,0,0,0,0x3f,0,0,0,0xc0,0,0,0,0,0,0,0x80,0x7f};
     assert(!memcmp(packet,expected,20));
-    s.mode=RUN_DUTY_DEBUG; vofa_pack(&s,packet);
+    s.mode=RUN_DUTY_DEBUG; vofa_pack(&s,.2f,packet);
+    for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(i%2?isnan(v):fabsf(v-.2f)<1e-6f); }
+    vofa_pack(&s,NAN,packet);
     for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(isnan(v)); }
+    s.mode=RUN_SPEED_DEBUG; s.feedback.valid=false; vofa_pack(&s,.2f,packet);
+    float target,measured; memcpy(&target,packet,4); memcpy(&measured,packet+4,4);
+    assert(target==1 && isnan(measured));
     assert(packet[16]==0 && packet[17]==0 && packet[18]==0x80 && packet[19]==0x7f);
     ControlSnapshot stopped={0}; stopped.mode=RUN_STATIC_DEBUG; stopped.feedback.delta[1]=-6;
     param_defaults(&p); p.debug_speed_mps=.2f;

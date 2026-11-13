@@ -81,7 +81,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
             g_app_param.debug_speed_mps>0 && (g_app_param.calibration_mask&7u)==7u;
         vofa_open_loop=vofa_enabled && !closed_ready;
         app_exchange_request(vofa_enabled && closed_ready?REQ_SPEED_DEBUG:REQ_RUN30);
-        note(vofa_open_loop?"VOFA open30: no m/s":vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
+        note(vofa_open_loop?"OPEN30 meas N/A":vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
         break;
     case MENU_CAMERA:
         note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
@@ -137,7 +137,8 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         if(vofa_enabled && vofa_open_loop) {
             snprintf(text,sizeof text,"L cnt %+ld",(long)s->feedback.delta[0]); line(2,text);
             snprintf(text,sizeof text,"R cnt %+ld",(long)s->feedback.delta[1]); line(3,text);
-            line(4,"m/s N/A (open loop)");
+            menu_float_text(a,sizeof a,g_app_param.debug_speed_mps);
+            snprintf(text,sizeof text,"set %s m/s",a); line(4,text);
         } else {
             menu_float_text(a, sizeof a, s->feedback.speed_mps[0]);
             snprintf(text, sizeof text, "L m/s %s", a); line(2, text);
@@ -181,7 +182,7 @@ void debug_view_poll(const ControlSnapshot *s) {
     }
     if (vofa_enabled && now - last_vofa >= 20) {
         last_vofa = now;
-        uint8_t packet[20]; vofa_pack(s, packet);
+        uint8_t packet[20]; vofa_pack(s, g_app_param.debug_speed_mps, packet);
         uart_write_buffer(UART_3, packet, sizeof packet);
     }
     if (now - last_screen >= 100 || menu.page != drawn_page) {

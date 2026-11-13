@@ -2,9 +2,9 @@
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
-当前补丁版本V1.50.7：para → vision增加camera calib，独立编辑ground_h0～ground_h7。键盘原OK键改为负号-，切换输入正负，SAVE统一确认并写Flash；CLR清空、BACK/KEY1取消返回。相机系数用科学计数法显示小数值，原有硬件页、返回位置记忆和旧保存参数继续保留。
+当前补丁版本V1.50.8：VOFA开环调试保留I0/I2设定目标速度，I1/I3未标定实测速度发送NaN。para → vision增加camera calib，独立编辑ground_h0～ground_h7。键盘原OK键改为负号-，切换输入正负，SAVE统一确认并写Flash；CLR清空、BACK/KEY1取消返回。相机系数用科学计数法显示小数值，原有硬件页、返回位置记忆和旧保存参数继续保留。
 
-V1.50基于主干V1.3，加入五向导航菜单与KEY1返回、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash86692B、RAM31596B。V1.50.7已完成目标板编程、校验和复位，实际五向键操作、Flash掉电和巡线仍待验证。**默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
+V1.50基于主干V1.3，加入五向导航菜单与KEY1返回、数字键盘与Flash保存、run 30开环调试和VOFA速度闭环调试，未合入V1.4 IMU内环。主机测试与WCH完整构建通过，Flash86772B、RAM31596B。V1.50.8已完成目标板编程、校验和复位，实际五向键操作、Flash掉电和巡线仍待验证。**默认实测参数为空，禁止巡线发车。** 当前产物为 `build/target/second-test-v1.50.hex`，历史release不是当前固件。
 
 ## 视觉与电控分层
 
@@ -53,7 +53,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 UART3 PB10(TX)接USB转TTL的RX并共地，使用3.3V逻辑。电脑选择对应COM、115200、8N1、JustFloat。依据[VOFA官方JustFloat协议](https://www.vofa.plus/docs/learning/dataengines/justfloat/)，每帧为四个float32小端数，后接 `00 00 80 7F`，共20字节，每20ms发送一次。四通道依次为**左要求速度、左编码器实测速度、右要求速度、右编码器实测速度**，单位m/s；要求速度是加速规划后送给PI的目标。
 
-按当前台架需求，确认vofa时，缺少真实几何/编码器/方向标定、目标为零或反馈无效，就自动启动两侧固定30%开环输出；不经过速度PI，Kp/Ki不影响该输出。此时四路速度均发送float32 NaN，速度曲线暂不可用，屏幕显示原始计数及PWM，不把脉冲计数伪装成m/s。标定完整且VOFA target m/s为正值时，自动启动原两轮速度闭环，发送真实目标/实测速度。run 30仍独立提供相同30%开环输出，不受比赛duty_limit默认25%裁剪。退出实时页或stop即停止电机和发送；正常发送不混printf，不接受串口文本命令。
+按当前台架需求，确认vofa时，缺少真实几何/编码器/方向标定、目标为零或反馈无效，就自动启动两侧固定30%开环输出；不经过速度PI，Kp/Ki不影响该输出。此时I0/I2发送VOFA target保存的设定参考值（例如0.200m/s），I1/I3因测速未标定发送float32 NaN。参考线可显示，但电机仍固定30%开环，不追踪该设定值；屏幕显示设定值、原始计数及PWM。标定完整且VOFA target m/s为正值时，自动启动原两轮速度闭环，发送真实目标/实测速度。run 30仍独立提供相同30%开环输出，不受比赛duty_limit默认25%裁剪。退出实时页或stop即停止电机和发送；正常发送不混printf，不接受串口文本命令。
 
 正式路线在 `User/config/track_profile.h` 配置，不要把格式示例当现场地图。IMU 和电流闭环未启用；实际驱动板没有接回电流/故障反馈。
 

@@ -54,7 +54,14 @@ void tft180_show_string(uint16_t x,uint16_t y,const char *text) { assert(x<160 &
 void tft180_show_gray_image(uint16_t x,uint16_t y,const uint8_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t threshold) {
     assert(x+dw<=160 && y+dh<=128 && p && w==188 && h==120 && threshold==0); images++;
 }
-void uart_write_buffer(int uart,const uint8_t *p,unsigned len) { assert(uart==3 && len==20 && p[18]==0x80 && p[19]==0x7f); packets++; }
+void uart_write_buffer(int uart,const uint8_t *p,unsigned len) {
+    assert(uart==3 && len==20 && p[18]==0x80 && p[19]==0x7f);
+    if(s.mode==RUN_DUTY_DEBUG) for(unsigned i=0;i<4;i++) {
+        float v; memcpy(&v,p+i*4,4);
+        assert(i%2?isnan(v):v==g_app_param.debug_speed_mps);
+    }
+    packets++;
+}
 void pit_disable(int timer) { assert(timer==6); }
 void pit_ms_init(int timer,unsigned period) { assert(timer==6 && period==5); }
 static void poll(unsigned dt) { now+=dt; debug_view_poll(&s); }

@@ -209,11 +209,16 @@ void menu_value_text(const MenuModel *m,const AppParam *p,char *out,unsigned siz
     if(digits>=100000) { digits/=10; exponent++; }
     snprintf(out,size,"%s%ld.%04lde%+03d",value<0?"-":"",digits/10000,digits%10000,exponent);
 }
-void vofa_pack(const ControlSnapshot *s, uint8_t out[20]) {
+void vofa_pack(const ControlSnapshot *s, float open_loop_target, uint8_t out[20]) {
     _Static_assert(sizeof(float) == 4, "float32 required");
     float values[4] = {s->targets.left_mps, s->feedback.speed_mps[0],
                        s->targets.right_mps, s->feedback.speed_mps[1]};
-    if(s->mode==RUN_DUTY_DEBUG) for(unsigned i=0;i<4;i++) values[i]=NAN;
+    if(!s->feedback.valid) values[1]=values[3]=NAN;
+    if(s->mode==RUN_DUTY_DEBUG) {
+        /* A configured reference is known without calibration; measured m/s is not. */
+        values[0]=values[2]=isfinite(open_loop_target) && open_loop_target>=0?open_loop_target:NAN;
+        values[1]=values[3]=NAN;
+    }
     for (unsigned i = 0; i < 4; i++) {
         uint32_t bits; memcpy(&bits, &values[i], 4);
         for (unsigned j = 0; j < 4; j++) out[4*i+j] = (uint8_t)(bits >> (8*j));

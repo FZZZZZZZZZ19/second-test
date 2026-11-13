@@ -26,5 +26,5 @@ bool menu_apply_value(const MenuModel *m, AppParam *p);
 float menu_param_value(const MenuModel *m, const AppParam *p);
 void menu_float_text(char *out, unsigned size, float value);
 void menu_value_text(const MenuModel *m,const AppParam *p,char *out,unsigned size);
-void vofa_pack(const ControlSnapshot *s, uint8_t out[20]);
+void vofa_pack(const ControlSnapshot *s, float open_loop_target, uint8_t out[20]);
 #endif
