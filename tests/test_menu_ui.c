@@ -102,11 +102,19 @@ int main(void) {
     hold(); way(1); back(); /* type but KEY1 cancels */
     assert(g_app_param.lateral_kp==2 && saves==attempts+1);
     click(); click(); click(); hold(); /* vision back -> para */
-    attempts=saves; click(); click(); hold(); assert(saves==attempts+1); /* save without inventing geometry */
+    attempts=saves; click(); click(); click(); hold(); assert(saves==attempts+1); /* save without inventing geometry */
     AppParam loaded; uint32_t sequence;
     assert(param_decode(record,&loaded,&sequence) && loaded.wheel_left_m==0 && !param_can_arm(&loaded,false));
-    click(); hold(); /* para back -> main */
-    click(); click(); hold(); /* control */
+    way(5); hold(); /* para hardware */
+    snapshot("build/host/menu-hardware.pgm");
+    hold(); /* body length keyboard: enter 300 mm */
+    way(6); way(6); way(1); way(2); way(2); way(4); way(4); way(4); way(6);
+    way(1); way(1); way(6); way(1); /* SAVE */
+    assert(fabsf(g_app_param.body_length_m-.3f)<1e-6f);
+    click(); click(); click(); hold(); back(); /* wheel track edit cancellation preserves cursor */
+    snapshot("build/host/menu-hardware-back.pgm");
+    back(); back(); /* hardware -> para(hardware), para -> main(para) */
+    click(); hold(); /* main control */
     click(); click(); hold(); /* no calibration -> VOFA starts run30, not a fake speed loop */
     assert((requests&REQ_RUN30) && !(requests&REQ_SPEED_DEBUG));
     s.mode=RUN_DUTY_DEBUG; s.duty[0]=s.duty[1]=.3f; poll(100);
@@ -116,7 +124,7 @@ int main(void) {
     g_app_param.wheel_left_m=g_app_param.wheel_right_m=.06f;
     g_app_param.track_m=.15f; g_app_param.axle_m=.1f; g_app_param.counts_left=g_app_param.counts_right=100;
     g_app_param.calibration_mask=7; g_app_param.debug_speed_mps=.1f; s.feedback.valid=true;
-    click(); click(); hold(); assert(requests&REQ_SPEED_DEBUG);
+    hold(); assert(requests&REQ_SPEED_DEBUG);
     poll(20); assert(packets>0); snapshot("build/host/menu-live.pgm");
     back(); count=packets; poll(100); assert(packets==count && !capture);
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");

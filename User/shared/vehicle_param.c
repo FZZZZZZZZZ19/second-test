@@ -4,6 +4,10 @@
 #include "vision_tuning.h"
 #include <math.h>
 #include <string.h>
+#define PARAM_COUNT(n) +1
+enum { PARAM_FLOAT_COUNT = 0 APP_FLOAT_FIELDS(PARAM_COUNT) };
+#undef PARAM_COUNT
+_Static_assert(32 + 4 * PARAM_FLOAT_COUNT <= 248, "parameter payload exceeds record");
 void param_defaults(AppParam *p) {
     memset(p, 0, sizeof(*p));
     vision_param_defaults(p);
@@ -25,6 +29,7 @@ static bool validate_param(const AppParam *p, bool allow_missing) {
         return false;
     if ((!allow_missing || p->counts_left != 0) && (p->counts_left < 1 || p->counts_left > 1000000)) return false;
     if ((!allow_missing || p->counts_right != 0) && (p->counts_right < 1 || p->counts_right > 1000000)) return false;
+    if (p->body_length_m < 0 || p->body_length_m > 3 || p->body_width_m < 0 || p->body_width_m > 2) return false;
     if (p->encoder_tau_s < 0 || p->encoder_tau_s > 1 || p->integral_limit < 0 ||
         p->integral_limit > 1)
         return false;
@@ -85,7 +90,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 4);
+    put32(out + 4, 5);
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -110,7 +115,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     return true;
 }
 bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_t *seq) {
-    if (!in || !p || !seq || get32(in) != 0x53545631u || (get32(in + 4) != 2 && get32(in + 4) != 4) ||
+    if (!in || !p || !seq || get32(in) != 0x53545631u || (get32(in + 4) != 2 && get32(in + 4) != 4 && get32(in + 4) != 5) ||
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     AppParam candidate;
@@ -125,9 +130,11 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     APP_FLOAT_FIELDS(DECODE)
 #undef DECODE
+    if (get32(in + 4) != 5) {
+        candidate.body_length_m = candidate.body_width_m = 0; n-=2;
+    }
     if (get32(in + 4) == 2) {
-        candidate.debug_speed_mps = 0; /* require an explicit target after migration */
-        n--;
+        candidate.debug_speed_mps = 0; n--;
     }
     if (get32(in + 12) != n || get32(in + 24) > 255 || get32(in + 28) > 3)
         return false;

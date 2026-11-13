@@ -18,7 +18,7 @@
                         X(island_min_distance_m) X(island_min_turn_rad) X(camera_forward_m)        \
                             X(row_distance_near_m) X(row_distance_far_m) X(width_near_px)          \
                                 X(width_far_px) X(row_jump_px) X(confirm_ms) X(release_ms) \
-    X(ground_h0) X(ground_h1) X(ground_h2) X(ground_h3) X(ground_h4) X(ground_h5) X(ground_h6) X(ground_h7) X(debug_speed_mps)
+    X(ground_h0) X(ground_h1) X(ground_h2) X(ground_h3) X(ground_h4) X(ground_h5) X(ground_h6) X(ground_h7) X(debug_speed_mps) X(body_length_m) X(body_width_m)
 typedef struct {
 #define DECL_FIELD(n) float n;
     APP_FLOAT_FIELDS(DECL_FIELD)

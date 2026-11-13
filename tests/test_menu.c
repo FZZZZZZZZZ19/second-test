@@ -68,14 +68,33 @@ int main(void) {
     pick(&k,"OK"); assert(way(&k,1)==MENU_APPLY);
     pick(&k,"BACK"); way(&k,1); assert(k.page==MENU_VISION && k.selected==0);
     way(&k,6); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
-    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE};
-    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL};
+    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE,MENU_HARDWARE};
+    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL,MENU_PARA};
     for(unsigned j=0;j<sizeof pages/sizeof pages[0];j++) {
         menu_init(&k); k.page=pages[j]; k.parent=MENU_PARAMS;
         MenuAction a=way(&k,3);
         assert(k.page==parents[j] && k.selected==0);
-        assert(a==((j==4 || j>=6)?MENU_STOP:MENU_NONE));
+        assert(a==((pages[j]==MENU_CONTROL || pages[j]==MENU_RACE_IMAGE || pages[j]==MENU_IMAGE || pages[j]==MENU_LIVE)?MENU_STOP:MENU_NONE));
     }
+    MenuModel h; menu_init(&h); h.selected=1; menu_confirm(&h);
+    h.selected=2; menu_confirm(&h); assert(h.page==MENU_HARDWARE && menu_count(&h)==11);
+    AppParam hardware; param_defaults(&hardware);
+    h.selected=3; menu_confirm(&h); strcpy(h.input,"150");
+    assert(menu_apply_value(&h,&hardware) && fabsf(hardware.track_m-.15f)<1e-6f);
+    assert(fabsf(menu_param_value(&h,&hardware)-150)<.001f);
+    menu_back(&h); assert(h.page==MENU_HARDWARE && h.selected==3);
+    h.selected=0; menu_confirm(&h); strcpy(h.input,"300");
+    assert(menu_apply_value(&h,&hardware) && fabsf(hardware.body_length_m-.3f)<1e-6f);
+    strcpy(h.input,"3001"); assert(!menu_apply_value(&h,&hardware)); menu_back(&h);
+    h.selected=7; menu_confirm(&h); strcpy(h.input,"1024.5"); assert(!menu_apply_value(&h,&hardware));
+    strcpy(h.input,"1024"); assert(menu_apply_value(&h,&hardware) && hardware.counts_left==1024);
+    menu_back(&h); assert(h.selected==7);
+    h.selected=10; menu_confirm(&h); assert(h.page==MENU_PARA && h.selected==2);
+    menu_back(&h); assert(h.page==MENU_MAIN && h.selected==1);
+    h.selected=2; menu_confirm(&h); h.selected=2; assert(menu_confirm(&h)==MENU_VOFA);
+    menu_back(&h); assert(h.page==MENU_CONTROL && h.selected==2);
+    h.selected=3; menu_confirm(&h); menu_back(&h); assert(h.selected==3);
+    h.selected=5; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
     ControlSnapshot s={0}; s.targets.left_mps=1; s.targets.right_mps=-2;
     s.feedback.speed_mps[0]=.5f; s.feedback.speed_mps[1]=0;
     uint8_t packet[20]; vofa_pack(&s,packet);
@@ -107,6 +126,13 @@ int main(void) {
     uint8_t record[APP_PARAM_RECORD_BYTES]; AppParam q; uint32_t seq;
     assert(param_encode(&p,7,record) && param_decode(record,&q,&seq));
     assert(q.debug_speed_mps==.2f && seq==7);
+    p.body_length_m=.3f; p.body_width_m=.2f;
+    assert(param_encode(&p,8,record) && param_decode(record,&q,&seq));
+    assert(q.body_length_m==.3f && q.body_width_m==.2f);
+    put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
+    put32(record+248,app_crc32(record,248));
+    assert(param_decode(record,&q,&seq) && q.body_length_m==0 && q.body_width_m==0 && q.debug_speed_mps==.2f);
+    assert(!memcmp(&q,&p,50*4)); /* previous fields and saved gains preserved */
     put32(record+4,2); put32(record+12,49); memset(record+32+49*4,255,4);
     put32(record+248,app_crc32(record,248));
     assert(param_decode(record,&q,&seq) && q.debug_speed_mps==0 && q.kp_left==p.kp_left);

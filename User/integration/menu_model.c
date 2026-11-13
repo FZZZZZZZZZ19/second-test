@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-typedef struct { const char *name; size_t offset; float min, max; } Field;
-#define F(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi}
+typedef struct { const char *name; size_t offset; float min, max, ui_scale; } Field;
+#define F(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1}
 static const Field fields[] = {
     F("omega Kp", lateral_kp, 0, 10000), F("omega Kd", lateral_kd, 0, 10000),
     F("D filter s", lateral_tau_s, 0, 10),
@@ -17,14 +17,23 @@ static const Field fields[] = {
     F("duty limit 0..0.8", duty_limit, .001f, .8f),
     F("speed limit m/s", speed_limit_mps, .001f, 5),
     F("normal speed m/s", speed_normal, 0, 5),
-    F("left FF", ff_left, 0, 10000), F("right FF", ff_right, 0, 10000)
+    F("left FF", ff_left, 0, 10000), F("right FF", ff_right, 0, 10000),
+#define H(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1000}
+    H("body length mm", body_length_m, 0, 3000), H("body width mm", body_width_m, 0, 2000),
+    H("wheelbase mm", axle_m, 10, 600), H("wheel track mm", track_m, 30, 600),
+    H("eff track mm", effective_track_m, 0, 1500),
+    H("L wheel dia mm", wheel_left_m, 10, 300), H("R wheel dia mm", wheel_right_m, 10, 300),
+    F("L counts/rev", counts_left, 1, 1000000), F("R counts/rev", counts_right, 1, 1000000),
+    H("cam offset mm", camera_forward_m, 0, 3000)
+#undef H
 };
 static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","OK",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
     switch (m->page) {
     case MENU_MAIN: return 3;
-    case MENU_PARA: return 4;
+    case MENU_PARA: return 5;
+    case MENU_HARDWARE: return 11;
     case MENU_VISION: return 4;
     case MENU_PARAMS: return 13;
     case MENU_CONTROL: return 6;
@@ -35,12 +44,12 @@ unsigned menu_count(const MenuModel *m) {
 }
 const char *menu_title(const MenuModel *m) {
     static const char *const titles[] = {"V1.50 MAIN","para","vision","control parameters",
-        "control","number input","start / camera","image","motor test"};
+        "control","number input","start / camera","image","motor test","hardware"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
 const char *menu_label(const MenuModel *m, unsigned i) {
     static const char *const main_items[] = {"start","para","control"};
-    static const char *const para_items[] = {"vision","control","save to flash","back"};
+    static const char *const para_items[] = {"vision","control","hardware","save to flash","back"};
     static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","back"};
     if (i >= menu_count(m)) return "";
     switch (m->page) {
@@ -50,11 +59,20 @@ const char *menu_label(const MenuModel *m, unsigned i) {
     case MENU_KEYPAD: return digits[i];
     case MENU_VISION: return i == 3 ? "back" : fields[i].name;
     case MENU_PARAMS: return i == 12 ? "back" : fields[i + 3].name;
+    case MENU_HARDWARE: return i==10?"back":fields[15+i].name;
     case MENU_LIVE: return i ? "back" : "stop";
     default: return "back";
     }
 }
-static void enter(MenuModel *m, MenuPage p) { m->page = p; m->selected = 0; }
+static void enter(MenuModel *m, MenuPage p) {
+    m->cursor[m->page]=(uint8_t)m->selected;
+    m->page=p; m->selected=0;
+}
+static void return_to(MenuModel *m, MenuPage p) {
+    m->cursor[m->page]=(uint8_t)m->selected;
+    m->page=p; m->selected=m->cursor[p];
+    if(m->selected>=menu_count(m)) m->selected=0;
+}
 static void edit(MenuModel *m, unsigned field) {
     m->parent = m->page; m->field = field; m->input[0] = 0; m->input_error = false;
     enter(m, MENU_KEYPAD);
@@ -62,11 +80,12 @@ static void edit(MenuModel *m, unsigned field) {
 MenuAction menu_back(MenuModel *m) {
     switch(m->page) {
     case MENU_MAIN: return MENU_NONE;
-    case MENU_KEYPAD: enter(m,m->parent); return MENU_NONE;
-    case MENU_VISION: case MENU_PARAMS: enter(m,MENU_PARA); return MENU_NONE;
-    case MENU_PARA: enter(m,MENU_MAIN); return MENU_NONE;
-    case MENU_CONTROL: case MENU_RACE_IMAGE: enter(m,MENU_MAIN); return MENU_STOP;
-    case MENU_IMAGE: case MENU_LIVE: enter(m,MENU_CONTROL); return MENU_STOP;
+    case MENU_KEYPAD: return_to(m,m->parent); return MENU_NONE;
+    case MENU_VISION: case MENU_PARAMS: case MENU_HARDWARE: return_to(m,MENU_PARA); return MENU_NONE;
+    case MENU_PARA: return_to(m,MENU_MAIN); return MENU_NONE;
+    case MENU_CONTROL: case MENU_RACE_IMAGE: return_to(m,MENU_MAIN); return MENU_STOP;
+    case MENU_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
+    case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;
 }
@@ -78,19 +97,21 @@ MenuAction menu_confirm(MenuModel *m) {
         enter(m, i == 1 ? MENU_PARA : MENU_CONTROL); break;
     case MENU_PARA:
         if (i < 2) enter(m, i ? MENU_PARAMS : MENU_VISION);
-        else if (i == 2) return MENU_SAVE;
-        else enter(m, MENU_MAIN);
+        else if (i == 2) enter(m,MENU_HARDWARE);
+        else if (i == 3) return MENU_SAVE;
+        else return menu_back(m);
         break;
     case MENU_VISION:
     case MENU_PARAMS:
-        if (i == menu_count(m) - 1) enter(m, MENU_PARA);
-        else edit(m, i + (m->page == MENU_PARAMS ? 3 : 0));
+    case MENU_HARDWARE:
+        if (i == menu_count(m) - 1) return menu_back(m);
+        else edit(m, i + (m->page == MENU_PARAMS ? 3 : m->page == MENU_HARDWARE ? 15 : 0));
         break;
     case MENU_CONTROL:
         if (i == 0 || i == 2) { enter(m, MENU_LIVE); return i ? MENU_VOFA : MENU_RUN30; }
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
         if (i == 3) edit(m, 9);
-        else { if (i == 5) enter(m, MENU_MAIN); return MENU_STOP; }
+        else { if (i == 5) return menu_back(m); return MENU_STOP; }
         break;
     case MENU_KEYPAD: {
         size_t n = strlen(m->input);
@@ -107,8 +128,8 @@ MenuAction menu_confirm(MenuModel *m) {
         else if (i == 15) return menu_back(m);
         break;
     }
-    case MENU_RACE_IMAGE: enter(m, MENU_MAIN); return MENU_STOP;
-    case MENU_IMAGE: case MENU_LIVE: enter(m, MENU_CONTROL); return MENU_STOP;
+    case MENU_RACE_IMAGE: case MENU_IMAGE: case MENU_LIVE: return menu_back(m);
+    case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;
 }
@@ -133,7 +154,7 @@ MenuAction menu_key(MenuModel *m, uint8_t code, uint32_t now) {
 }
 
 float menu_param_value(const MenuModel *m, const AppParam *p) {
-    float value; memcpy(&value, (const char *)p + fields[m->field].offset, sizeof value); return value;
+    float value; memcpy(&value, (const char *)p + fields[m->field].offset, sizeof value); return value*fields[m->field].ui_scale;
 }
 bool menu_apply_value(const MenuModel *m, AppParam *p) {
     char *end;
@@ -141,6 +162,9 @@ bool menu_apply_value(const MenuModel *m, AppParam *p) {
     float value = strtof(m->input, &end);
     const Field *f = &fields[m->field];
     if (*end || !isfinite(value) || value < f->min || value > f->max) return false;
+    value/=f->ui_scale; /* hardware UI uses millimetres; AppParam remains SI */
+    if (f->offset==offsetof(AppParam,effective_track_m) && value>0 && value<.03f) return false;
+    if ((f->offset==offsetof(AppParam,counts_left) || f->offset==offsetof(AppParam,counts_right)) && floorf(value)!=value) return false;
     if ((m->field == 9 && value > p->speed_limit_mps) ||
         (m->field == 11 && (value < p->debug_speed_mps || value < p->speed_normal ||
                           value < p->speed_corner || value < p->speed_element)) ||
@@ -152,7 +176,7 @@ bool menu_apply_value(const MenuModel *m, AppParam *p) {
 }
 void menu_float_text(char *out, unsigned size, float value) {
     /* Integer formatting works with the existing nano printf (no float linker flag). */
-    if (!isfinite(value) || fabsf(value) > 100000) { snprintf(out, size, "invalid"); return; }
+    if (!isfinite(value) || fabsf(value) > 1000000) { snprintf(out, size, "invalid"); return; }
     long milli = (long)(fabsf(value) * 1000 + .5f);
     snprintf(out, size, "%s%ld.%03ld", value < 0 ? "-" : "", milli / 1000, milli % 1000);
 }
