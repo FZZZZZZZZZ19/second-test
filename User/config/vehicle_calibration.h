@@ -7,8 +7,11 @@
 #define CAL_WHEEL_RIGHT_M 0.0337f
 #define CAL_TRACK_M 0.1666f
 #define CAL_AXLE_M 0.0355f
-#define CAL_COUNTS_LEFT 0.0f
-#define CAL_COUNTS_RIGHT 0.0f
+/* MT6701CT-ACD: 1024 PPR, existing TIM TI2 x2 counting, wheel shaft 1:1.
+ * Do not use 16384 (absolute angle resolution) or 4096 (TI12 x4).
+ * Wiring direction still needs confirmation; CAL_MASK remains unchanged. */
+#define CAL_COUNTS_LEFT 2048.0f
+#define CAL_COUNTS_RIGHT 2048.0f
 #define CAL_ROW_NEAR_M 0.0f
 #define CAL_ROW_FAR_M 0.0f
 #define CAL_CAMERA_FORWARD_M 0.0f

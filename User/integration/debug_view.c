@@ -81,7 +81,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
             g_app_param.debug_speed_mps>0 && (g_app_param.calibration_mask&7u)==7u;
         vofa_open_loop=vofa_enabled && !closed_ready;
         app_exchange_request(vofa_enabled && closed_ready?REQ_SPEED_DEBUG:REQ_RUN30);
-        note(vofa_open_loop?"OPEN30 meas N/A":vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
+        note(vofa_open_loop?(s->feedback.valid?"OPEN30 speed view":"OPEN30 meas N/A"):vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
         break;
     case MENU_CAMERA:
         note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
@@ -134,7 +134,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
     } else if (menu.page == MENU_LIVE) {
         snprintf(text,sizeof text,"%s M%u E%u F%u", vofa_enabled ? "VOFA" : "test",
                  (unsigned)s->mode,s->feedback.valid,(unsigned)s->reason); line(0,text);
-        if(vofa_enabled && vofa_open_loop) {
+        if(vofa_enabled && vofa_open_loop && !s->feedback.valid) {
             snprintf(text,sizeof text,"L cnt %+ld",(long)s->feedback.delta[0]); line(2,text);
             snprintf(text,sizeof text,"R cnt %+ld",(long)s->feedback.delta[1]); line(3,text);
             menu_float_text(a,sizeof a,g_app_param.debug_speed_mps);
@@ -144,8 +144,8 @@ static void render(const ControlSnapshot *s, uint32_t now) {
             snprintf(text, sizeof text, "L m/s %s", a); line(2, text);
             menu_float_text(a, sizeof a, s->feedback.speed_mps[1]);
             snprintf(text, sizeof text, "R m/s %s", a); line(3, text);
-            menu_float_text(a, sizeof a, s->targets.left_mps);
-            menu_float_text(b, sizeof b, s->targets.right_mps);
+            menu_float_text(a, sizeof a, vofa_enabled && vofa_open_loop?g_app_param.debug_speed_mps:s->targets.left_mps);
+            menu_float_text(b, sizeof b, vofa_enabled && vofa_open_loop?g_app_param.debug_speed_mps:s->targets.right_mps);
             snprintf(text, sizeof text, "ref L%s R%s", a, b); line(4, text);
         }
         snprintf(text, sizeof text, "PWM L%ld%% R%ld%%", (long)(s->duty[0]*100), (long)(s->duty[1]*100)); line(5, text);

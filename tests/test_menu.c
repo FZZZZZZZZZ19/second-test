@@ -123,6 +123,8 @@ int main(void) {
     const uint8_t expected[20]={0,0,0x80,0x3f,0,0,0,0x3f,0,0,0,0xc0,0,0,0,0,0,0,0x80,0x7f};
     assert(!memcmp(packet,expected,20));
     s.mode=RUN_DUTY_DEBUG; vofa_pack(&s,.2f,packet);
+    for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(fabsf(v-(i==1?.5f:i==3?0:.2f))<1e-6f); }
+    s.feedback.valid=false; vofa_pack(&s,.2f,packet);
     for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(i%2?isnan(v):fabsf(v-.2f)<1e-6f); }
     vofa_pack(&s,NAN,packet);
     for(unsigned i=0;i<4;i++) { float v; memcpy(&v,packet+i*4,4); assert(isnan(v)); }

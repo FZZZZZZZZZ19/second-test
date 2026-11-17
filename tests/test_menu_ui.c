@@ -58,7 +58,7 @@ void uart_write_buffer(int uart,const uint8_t *p,unsigned len) {
     assert(uart==3 && len==20 && p[18]==0x80 && p[19]==0x7f);
     if(s.mode==RUN_DUTY_DEBUG) for(unsigned i=0;i<4;i++) {
         float v; memcpy(&v,p+i*4,4);
-        assert(i%2?isnan(v):v==g_app_param.debug_speed_mps);
+        assert(i%2?(s.feedback.valid?v==s.feedback.speed_mps[i/2]:isnan(v)):v==g_app_param.debug_speed_mps);
     }
     packets++;
 }

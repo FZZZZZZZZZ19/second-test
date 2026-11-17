@@ -217,7 +217,6 @@ void vofa_pack(const ControlSnapshot *s, float open_loop_target, uint8_t out[20]
     if(s->mode==RUN_DUTY_DEBUG) {
         /* A configured reference is known without calibration; measured m/s is not. */
         values[0]=values[2]=isfinite(open_loop_target) && open_loop_target>=0?open_loop_target:NAN;
-        values[1]=values[3]=NAN;
     }
     for (unsigned i = 0; i < 4; i++) {
         uint32_t bits; memcpy(&bits, &values[i], 4);
