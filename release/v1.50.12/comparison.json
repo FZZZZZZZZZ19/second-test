@@ -1,0 +1,11 @@
+{
+  "verified_user_hex_sha256": "16ff310b9dde0a3082ecc6411e423f3050ed587697af1b831886f6a5ba66bad5",
+  "verified_user_elf_sha256": "ad4b877031e680960abb96e62b3472b32d43ab8f96fffb7e63bfc044f4c99e5e",
+  "same_compiler": "xPack GCC 8.2.0",
+  "working_optimization": "-O0",
+  "v15011_optimization": "-Os",
+  "working_START_delay_loops": 2,
+  "v15011_START_delay_loops": 0,
+  "fixed_START_delay_calls": 2,
+  "hardware_validation": "not performed: WCH-Link open returned 100"
+}

@@ -1,0 +1,66 @@
+
+
+
+Disassembly of section .init:
+
+Disassembly of section .vector:
+
+Disassembly of section .text:
+
+0000a55c <soft_iic_start>:
+    a55c:	1141                	addi	sp,sp,-16
+    a55e:	000145b7          	lui	a1,0x14
+    a562:	c422                	sw	s0,8(sp)
+    a564:	04700613          	li	a2,71
+    a568:	842a                	mv	s0,a0
+    a56a:	d8058593          	addi	a1,a1,-640 # 13d80 <CSWTCH.4+0x54>
+    a56e:	00a03533          	snez	a0,a0
+    a572:	c606                	sw	ra,12(sp)
+    a574:	c226                	sw	s1,4(sp)
+    a576:	c04a                	sw	s2,0(sp)
+    a578:	c81fe0ef          	jal	ra,91f8 <debug_assert_handler>
+    a57c:	401c                	lw	a5,0(s0)
+    a57e:	20000937          	lui	s2,0x20000
+    a582:	07c90913          	addi	s2,s2,124 # 2000007c <gpio_group>
+    a586:	0057d713          	srli	a4,a5,0x5
+    a58a:	070a                	slli	a4,a4,0x2
+    a58c:	974a                	add	a4,a4,s2
+    a58e:	4318                	lw	a4,0(a4)
+    a590:	4485                	li	s1,1
+    a592:	8bbd                	andi	a5,a5,15
+    a594:	00f497b3          	sll	a5,s1,a5
+    a598:	cb1c                	sw	a5,16(a4)
+    a59a:	405c                	lw	a5,4(s0)
+    a59c:	4448                	lw	a0,12(s0)
+    a59e:	0057d713          	srli	a4,a5,0x5
+    a5a2:	070a                	slli	a4,a4,0x2
+    a5a4:	974a                	add	a4,a4,s2
+    a5a6:	4318                	lw	a4,0(a4)
+    a5a8:	8bbd                	andi	a5,a5,15
+    a5aa:	00f497b3          	sll	a5,s1,a5
+    a5ae:	cb1c                	sw	a5,16(a4)
+    a5b0:	f97ff0ef          	jal	ra,a546 <soft_iic_delay>
+    a5b4:	405c                	lw	a5,4(s0)
+    a5b6:	4448                	lw	a0,12(s0)
+    a5b8:	0057d713          	srli	a4,a5,0x5
+    a5bc:	070a                	slli	a4,a4,0x2
+    a5be:	974a                	add	a4,a4,s2
+    a5c0:	4318                	lw	a4,0(a4)
+    a5c2:	8bbd                	andi	a5,a5,15
+    a5c4:	00f497b3          	sll	a5,s1,a5
+    a5c8:	cb5c                	sw	a5,20(a4)
+    a5ca:	f7dff0ef          	jal	ra,a546 <soft_iic_delay>
+    a5ce:	4018                	lw	a4,0(s0)
+    a5d0:	40b2                	lw	ra,12(sp)
+    a5d2:	4422                	lw	s0,8(sp)
+    a5d4:	00575793          	srli	a5,a4,0x5
+    a5d8:	078a                	slli	a5,a5,0x2
+    a5da:	993e                	add	s2,s2,a5
+    a5dc:	00092783          	lw	a5,0(s2)
+    a5e0:	8b3d                	andi	a4,a4,15
+    a5e2:	00e494b3          	sll	s1,s1,a4
+    a5e6:	cbc4                	sw	s1,20(a5)
+    a5e8:	4902                	lw	s2,0(sp)
+    a5ea:	4492                	lw	s1,4(sp)
+    a5ec:	0141                	addi	sp,sp,16
+    a5ee:	8082                	ret

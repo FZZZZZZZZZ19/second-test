@@ -1,0 +1,21 @@
+
+
+
+Disassembly of section .init:
+
+Disassembly of section .vector:
+
+Disassembly of section .text:
+
+0000a546 <soft_iic_delay>:
+    a546:	1141                	addi	sp,sp,-16
+    a548:	c62a                	sw	a0,12(sp)
+    a54a:	47b2                	lw	a5,12(sp)
+    a54c:	e399                	bnez	a5,a552 <soft_iic_delay+0xc>
+    a54e:	0141                	addi	sp,sp,16
+    a550:	8082                	ret
+    a552:	47b2                	lw	a5,12(sp)
+    a554:	17fd                	addi	a5,a5,-1
+    a556:	c63e                	sw	a5,12(sp)
+    a558:	0001                	nop
+    a55a:	bfc5                	j	a54a <soft_iic_delay+0x4>

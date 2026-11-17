@@ -76,11 +76,17 @@ def main():
     for fmt, ext in [('ihex', 'hex'), ('binary', 'bin')]:
         subprocess.run([str(bin_dir / ('riscv-none-embed-objcopy' + suffix)), '-O', fmt, str(elf), str(elf.with_suffix('.' + ext))], check=True)
     size = subprocess.check_output([str(bin_dir / ('riscv-none-embed-size' + suffix)), str(elf)], text=True)
+    timing = subprocess.run([sys.executable, str(ROOT / 'tools/test_soft_iic_timing.py'),
+                             '--elf', str(elf), '--objdump', str(bin_dir / ('riscv-none-embed-objdump' + suffix))],
+                            capture_output=True, text=True, check=True)
+    print(timing.stdout.strip())
     version = subprocess.check_output([gcc, '--version'], text=True).splitlines()[0]
-    inputs = sorted(set(sources + [ROOT / 'Ld/Link.ld', ROOT / 'zf_device/libzf_device_config.a'] +
+    inputs = sorted(set(sources + [ROOT / 'Ld/Link.ld', ROOT / 'zf_device/libzf_device_config.a',
+                                  ROOT / 'tools/build.py', ROOT / 'tools/test_soft_iic_timing.py'] +
                         [p for folder in inc for p in (ROOT / folder).glob('*.h')]))
     manifest = {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     report = {'firmware_version': firmware_version, 'compiler': version, 'sources': len(sources), 'size': size.replace(str(elf), elf.name),
+              'soft_iic_timing_check': timing.stdout.strip(),
               'source_files_sha256': manifest,
               'warning_lines': [line.replace(str(ROOT), '.') for log in logs for line in log.splitlines() if 'warning:' in line],
               'artifacts': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in [elf, elf.with_suffix('.hex'), elf.with_suffix('.bin')]}}

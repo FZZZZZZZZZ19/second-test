@@ -1,0 +1,113 @@
+
+
+
+Disassembly of section .init:
+
+Disassembly of section .vector:
+
+Disassembly of section .text:
+
+00000774 <soft_iic_start>:
+     774:	7179                	addi	sp,sp,-48
+     776:	d606                	sw	ra,44(sp)
+     778:	d422                	sw	s0,40(sp)
+     77a:	1800                	addi	s0,sp,48
+     77c:	fca42e23          	sw	a0,-36(s0)
+     780:	fdc42783          	lw	a5,-36(s0)
+     784:	00f037b3          	snez	a5,a5
+     788:	0ff7f793          	andi	a5,a5,255
+     78c:	873e                	mv	a4,a5
+     78e:	04100613          	li	a2,65
+     792:	67bd                	lui	a5,0xf
+     794:	11c78593          	addi	a1,a5,284 # f11c <_sbrk+0x76>
+     798:	853a                	mv	a0,a4
+     79a:	387020ef          	jal	ra,3320 <debug_assert_handler>
+     79e:	fdc42783          	lw	a5,-36(s0)
+     7a2:	439c                	lw	a5,0(a5)
+     7a4:	8bbd                	andi	a5,a5,15
+     7a6:	4705                	li	a4,1
+     7a8:	00f717b3          	sll	a5,a4,a5
+     7ac:	01079693          	slli	a3,a5,0x10
+     7b0:	82c1                	srli	a3,a3,0x10
+     7b2:	fdc42783          	lw	a5,-36(s0)
+     7b6:	439c                	lw	a5,0(a5)
+     7b8:	0057d713          	srli	a4,a5,0x5
+     7bc:	200007b7          	lui	a5,0x20000
+     7c0:	070a                	slli	a4,a4,0x2
+     7c2:	04078793          	addi	a5,a5,64 # 20000040 <_data_vma>
+     7c6:	97ba                	add	a5,a5,a4
+     7c8:	439c                	lw	a5,0(a5)
+     7ca:	8736                	mv	a4,a3
+     7cc:	cb98                	sw	a4,16(a5)
+     7ce:	fdc42783          	lw	a5,-36(s0)
+     7d2:	43dc                	lw	a5,4(a5)
+     7d4:	8bbd                	andi	a5,a5,15
+     7d6:	4705                	li	a4,1
+     7d8:	00f717b3          	sll	a5,a4,a5
+     7dc:	01079693          	slli	a3,a5,0x10
+     7e0:	82c1                	srli	a3,a3,0x10
+     7e2:	fdc42783          	lw	a5,-36(s0)
+     7e6:	43dc                	lw	a5,4(a5)
+     7e8:	0057d713          	srli	a4,a5,0x5
+     7ec:	200007b7          	lui	a5,0x20000
+     7f0:	070a                	slli	a4,a4,0x2
+     7f2:	04078793          	addi	a5,a5,64 # 20000040 <_data_vma>
+     7f6:	97ba                	add	a5,a5,a4
+     7f8:	439c                	lw	a5,0(a5)
+     7fa:	8736                	mv	a4,a3
+     7fc:	cb98                	sw	a4,16(a5)
+     7fe:	fdc42783          	lw	a5,-36(s0)
+     802:	47dc                	lw	a5,12(a5)
+     804:	fef42623          	sw	a5,-20(s0)
+     808:	0001                	nop
+     80a:	fec42783          	lw	a5,-20(s0)
+     80e:	fff78713          	addi	a4,a5,-1
+     812:	fee42623          	sw	a4,-20(s0)
+     816:	fbf5                	bnez	a5,80a <__stack_size+0xa>
+     818:	fdc42783          	lw	a5,-36(s0)
+     81c:	43dc                	lw	a5,4(a5)
+     81e:	8bbd                	andi	a5,a5,15
+     820:	4705                	li	a4,1
+     822:	00f717b3          	sll	a5,a4,a5
+     826:	01079693          	slli	a3,a5,0x10
+     82a:	82c1                	srli	a3,a3,0x10
+     82c:	fdc42783          	lw	a5,-36(s0)
+     830:	43dc                	lw	a5,4(a5)
+     832:	0057d713          	srli	a4,a5,0x5
+     836:	200007b7          	lui	a5,0x20000
+     83a:	070a                	slli	a4,a4,0x2
+     83c:	04078793          	addi	a5,a5,64 # 20000040 <_data_vma>
+     840:	97ba                	add	a5,a5,a4
+     842:	439c                	lw	a5,0(a5)
+     844:	8736                	mv	a4,a3
+     846:	cbd8                	sw	a4,20(a5)
+     848:	fdc42783          	lw	a5,-36(s0)
+     84c:	47dc                	lw	a5,12(a5)
+     84e:	fef42423          	sw	a5,-24(s0)
+     852:	0001                	nop
+     854:	fe842783          	lw	a5,-24(s0)
+     858:	fff78713          	addi	a4,a5,-1
+     85c:	fee42423          	sw	a4,-24(s0)
+     860:	fbf5                	bnez	a5,854 <__stack_size+0x54>
+     862:	fdc42783          	lw	a5,-36(s0)
+     866:	439c                	lw	a5,0(a5)
+     868:	8bbd                	andi	a5,a5,15
+     86a:	4705                	li	a4,1
+     86c:	00f717b3          	sll	a5,a4,a5
+     870:	01079693          	slli	a3,a5,0x10
+     874:	82c1                	srli	a3,a3,0x10
+     876:	fdc42783          	lw	a5,-36(s0)
+     87a:	439c                	lw	a5,0(a5)
+     87c:	0057d713          	srli	a4,a5,0x5
+     880:	200007b7          	lui	a5,0x20000
+     884:	070a                	slli	a4,a4,0x2
+     886:	04078793          	addi	a5,a5,64 # 20000040 <_data_vma>
+     88a:	97ba                	add	a5,a5,a4
+     88c:	439c                	lw	a5,0(a5)
+     88e:	8736                	mv	a4,a3
+     890:	cbd8                	sw	a4,20(a5)
+     892:	0001                	nop
+     894:	50b2                	lw	ra,44(sp)
+     896:	5422                	lw	s0,40(sp)
+     898:	6145                	addi	sp,sp,48
+     89a:	8082                	ret

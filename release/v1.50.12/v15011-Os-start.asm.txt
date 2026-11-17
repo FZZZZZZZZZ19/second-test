@@ -1,0 +1,44 @@
+
+
+
+Disassembly of section .init:
+
+Disassembly of section .vector:
+
+Disassembly of section .text:
+
+0000a546 <soft_iic_start>:
+    a546:	1141                	addi	sp,sp,-16
+    a548:	000145b7          	lui	a1,0x14
+    a54c:	c422                	sw	s0,8(sp)
+    a54e:	04100613          	li	a2,65
+    a552:	842a                	mv	s0,a0
+    a554:	c7058593          	addi	a1,a1,-912 # 13c70 <CSWTCH.4+0x54>
+    a558:	00a03533          	snez	a0,a0
+    a55c:	c606                	sw	ra,12(sp)
+    a55e:	c9bfe0ef          	jal	ra,91f8 <debug_assert_handler>
+    a562:	401c                	lw	a5,0(s0)
+    a564:	4050                	lw	a2,4(s0)
+    a566:	200006b7          	lui	a3,0x20000
+    a56a:	0057d713          	srli	a4,a5,0x5
+    a56e:	07c68593          	addi	a1,a3,124 # 2000007c <gpio_group>
+    a572:	070a                	slli	a4,a4,0x2
+    a574:	00565693          	srli	a3,a2,0x5
+    a578:	972e                	add	a4,a4,a1
+    a57a:	068a                	slli	a3,a3,0x2
+    a57c:	4308                	lw	a0,0(a4)
+    a57e:	96ae                	add	a3,a3,a1
+    a580:	4294                	lw	a3,0(a3)
+    a582:	4705                	li	a4,1
+    a584:	8bbd                	andi	a5,a5,15
+    a586:	00f717b3          	sll	a5,a4,a5
+    a58a:	8a3d                	andi	a2,a2,15
+    a58c:	c91c                	sw	a5,16(a0)
+    a58e:	00c71733          	sll	a4,a4,a2
+    a592:	ca98                	sw	a4,16(a3)
+    a594:	40b2                	lw	ra,12(sp)
+    a596:	4422                	lw	s0,8(sp)
+    a598:	cad8                	sw	a4,20(a3)
+    a59a:	c95c                	sw	a5,20(a0)
+    a59c:	0141                	addi	sp,sp,16
+    a59e:	8082                	ret

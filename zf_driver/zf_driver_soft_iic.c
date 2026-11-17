@@ -46,12 +46,18 @@
 // 使用示例     soft_iic_delay(1);
 // 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
-//static void soft_iic_delay (vuint32 delay)
-//{
-//    volatile uint32 count = delay;
-//    while(count --);
-//}
-#define soft_iic_delay(x)  for(uint32 i = x; i--; )
+/* Bus hold times must survive -Os/-O2. The previous empty, non-volatile
+ * loop vanished completely in optimized builds, breaking camera SCCB.
+ * This is a cycle delay, not a calibrated microsecond API. */
+static inline void soft_iic_delay(uint32 delay)
+{
+    volatile uint32 count = delay;
+    while(count > 0)
+    {
+        count--;
+        __asm volatile("nop" ::: "memory");
+    }
+}
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     软件 IIC START 信号
