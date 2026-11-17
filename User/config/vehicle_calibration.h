@@ -1,12 +1,12 @@
 #ifndef VEHICLE_CALIBRATION_H
 #define VEHICLE_CALIBRATION_H
-/* Measured 2026-11-17: diameter 33.7 mm, left/right wheel center spacing 166.6 mm.
+/* Measured 2026-11-17: diameter 33.7 mm, track 166.6 mm, wheelbase 35.5 mm.
  * SI units below. Remaining zeros intentionally prevent arming.
  * Saved Flash parameters override these boot defaults; update hardware menu too. */
 #define CAL_WHEEL_LEFT_M 0.0337f
 #define CAL_WHEEL_RIGHT_M 0.0337f
 #define CAL_TRACK_M 0.1666f
-#define CAL_AXLE_M 0.0f
+#define CAL_AXLE_M 0.0355f
 #define CAL_COUNTS_LEFT 0.0f
 #define CAL_COUNTS_RIGHT 0.0f
 #define CAL_ROW_NEAR_M 0.0f
