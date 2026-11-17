@@ -34,10 +34,12 @@ bool app_boot_init(void) {
     (void)side_encoder_init();
     app_control_init();
     pit_ms_init(TIM6_PIT, APP_CONTROL_PERIOD_MS);
+    /* Supplied working example initializes ST7735S before the camera. */
+    debug_view_init();
+    system_delay_ms(1000);
     bool ok = camera_frame_init();
     app_control_camera_ready(ok);
     (void)camera_frame_set_running(false);
-    debug_view_init();
     return ok;
 }
 void app_main_poll(void) {

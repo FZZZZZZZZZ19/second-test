@@ -1,5 +1,6 @@
 #include "app_runtime.h"
 #include "maintenance.h"
+#include "menu_display.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
@@ -11,7 +12,8 @@ static uint8_t key=7, record[APP_PARAM_RECORD_BYTES];
 static ControlSnapshot s;
 static unsigned resumes, images, saves, packets;
 static bool capture, save_ok=true;
-static unsigned char screen[128][160];
+static int camera_error;
+static unsigned char screen[160][128];
 static unsigned rgb_tiles, grid_cells;
 BoardIrqToken board_irq_save(void) { return 0; }
 void board_irq_restore(BoardIrqToken t) { (void)t; }
@@ -21,20 +23,21 @@ void board_clock_init(void) { now=0; }
 uint8_t board_key_code(void) { return key; }
 bool board_camera_hold_after_frame_isr(void) { capture=false; return true; }
 bool board_camera_restart_full_frame(void) { capture=true; resumes++; return true; }
-int mt9v03x_init(void) { return 0; }
+int mt9v03x_init(void) { return camera_error; }
 void app_exchange_request(uint32_t r) { requests |= r; }
 void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
 void app_control_init(void) {}
+void app_control_camera_ready(bool ok) { (void)ok; }
 bool side_encoder_init(void) { return true; }
 void motor_brake_zero(void) {}
 bool param_store_save(const AppParam *p) { assert(maintenance_save_check(&s,p)==MAINT_OK); saves++; return save_ok && param_encode(p,saves,record); }
-void tft180_init(void) {}
+void menu_display_init(void) {}
 void tft180_set_dir(int d) { (void)d; }
 void tft180_set_font(int f) { assert(f==1); }
-void tft180_clear(void) { memset(screen,255,sizeof screen); }
+void menu_display_clear(void) { memset(screen,255,sizeof screen); }
 void tft180_set_color(uint16_t pen,uint16_t bg) { assert(pen==0 && bg==0xffff); }
-void tft180_show_rgb565_image(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t color_mode) {
-    assert(x+dw<=160 && y+dh<=128 && w==8 && h==16 && color_mode==0);
+void menu_display_rgb(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t color_mode) {
+    assert(x+dw<=128 && y+dh<=160 && w==8 && h==16 && color_mode==0);
     if(dw==30 && dh==18) {
         assert(x>=4 && x+dw<=124 && y>=52 && y+dh<=124);
         grid_cells++;
@@ -42,17 +45,17 @@ void tft180_show_rgb565_image(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w
     rgb_tiles++;
     for(unsigned j=0;j<dh;j++)for(unsigned i=0;i<dw;i++) screen[y+j][x+i]=p[(j*h/dh)*w+i*w/dw]==0?0:255;
 }
-void tft180_draw_line(uint16_t x,uint16_t y,uint16_t x2,uint16_t y2,uint16_t color) {
-    assert(x<160 && x2<160 && y<128 && y2<128 && (x==x2 || y==y2));
+void menu_display_line(uint16_t x,uint16_t y,uint16_t x2,uint16_t y2,uint16_t color) {
+    assert(x<128 && x2<128 && y<160 && y2<160 && (x==x2 || y==y2));
     for(unsigned j=y;j<=y2;j++)for(unsigned i=x;i<=x2;i++) screen[j][i]=color?255:0;
 }
 static void snapshot(const char *path) {
-    FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n160 128\n255\n");
+    FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n128 160\n255\n");
     assert(fwrite(screen,1,sizeof screen,f)==sizeof screen); fclose(f);
 }
 void tft180_show_string(uint16_t x,uint16_t y,const char *text) { assert(x<160 && y<128 && strlen(text)<=26); }
-void tft180_show_gray_image(uint16_t x,uint16_t y,const uint8_t *p,uint16_t w,uint16_t h,uint16_t dw,uint16_t dh,uint8_t threshold) {
-    assert(x+dw<=160 && y+dh<=128 && p && w==188 && h==120 && threshold==0); images++;
+void menu_display_camera(const uint8_t *p,uint16_t w,uint16_t h,uint16_t stride) {
+    assert(p && w==188 && h==120 && stride==188); images++;
 }
 void uart_write_buffer(int uart,const uint8_t *p,unsigned len) {
     assert(uart==3 && len==20 && p[18]==0x80 && p[19]==0x7f);
@@ -70,6 +73,10 @@ static void click(void) { way(4); }
 static void hold(void) { way(1); }
 static void back(void) { way(3); }
 int main(void) {
+    FrameView no_frame;
+    camera_error=1; assert(!camera_frame_init() && camera_frame_init_status()==1);
+    assert(!camera_frame_acquire(&no_frame));
+    camera_error=0; assert(camera_frame_set_running(true) && camera_frame_init_status()==0);
     param_defaults(&g_app_param); s.mode=RUN_STATIC_DEBUG; s.config_ok=true; s.feedback.delta[1]=-6;
     assert(camera_frame_init()); assert(camera_frame_set_running(false)); debug_view_init(); poll(100);
     snapshot("build/host/menu-main.pgm");

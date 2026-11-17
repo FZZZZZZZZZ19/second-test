@@ -5,13 +5,16 @@ enum { FRAME_CAPTURE, FRAME_READY, FRAME_PROCESSING, FRAME_FAILED };
 static volatile uint8_t state = FRAME_CAPTURE;
 static volatile bool enabled, discard;
 static bool camera_initialized;
+static volatile uint8_t init_status;
 static volatile uint32_t frame_id, capture_ms;
 bool camera_frame_init(void) {
+    camera_initialized = false;
     enabled = false;
     state = FRAME_CAPTURE;
     frame_id = 0;
     discard = true;
-    if (mt9v03x_init() != 0) {
+    init_status = mt9v03x_init();
+    if (init_status != 0) {
         state = FRAME_FAILED;
         return false;
     }
@@ -25,6 +28,7 @@ bool camera_frame_init(void) {
     board_irq_restore(t);
     return ok;
 }
+uint8_t camera_frame_init_status(void) { return init_status; }
 void camera_frame_on_done_isr(void) {
     if (!enabled || state != FRAME_CAPTURE)
         return;
@@ -70,6 +74,8 @@ void camera_frame_release(uint32_t id) {
 
 /* Pause acquisition/DMA; sensor remains powered. Screen and KEY1 remain active. */
 bool camera_frame_set_running(bool running) {
+    /* Init may use UART interrupts/delays, so retry before entering IRQ lock. */
+    if (running && !camera_initialized) return camera_frame_init();
     BoardIrqToken t = board_irq_save();
     enabled = false;
     bool ok = board_camera_hold_after_frame_isr();

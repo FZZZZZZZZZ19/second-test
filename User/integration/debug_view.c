@@ -2,6 +2,7 @@
 #include "app_runtime.h"
 #include "menu_model.h"
 #include "menu_font.h"
+#include "menu_display.h"
 #include "maintenance.h"
 #include "zf_common_headfile.h"
 #include <math.h>
@@ -12,15 +13,15 @@ static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms, quiet_since;
 static bool vofa_enabled, start_pending, vofa_open_loop;
 static char message[27] = "U/D OK; K1 back";
-static char row_cache[8][21];
-static uint8_t row_style[8];
-static bool row_valid[8];
+static char row_cache[10][21];
+static uint8_t row_style[10];
+static bool row_valid[10];
 static unsigned grid_selected = 16;
-static void clear_screen(void) { tft180_clear(); memset(row_valid, 0, sizeof row_valid); grid_selected = 16; }
+static void clear_screen(void) { menu_display_clear(); memset(row_valid, 0, sizeof row_valid); grid_selected = 16; }
 static void styled_line(unsigned row, const char *text, unsigned scale, bool selected) {
-    if (row >= 8 || row*16 + scale*16 > 128) return;
+    if (row >= 10 || row*16 + scale*16 > MENU_DISPLAY_HEIGHT) return;
     char clipped[21];
-    snprintf(clipped, sizeof clipped, "%.*s", (int)(20/scale), text);
+    snprintf(clipped, sizeof clipped, "%.*s", (int)(16/scale), text);
     uint8_t style = (uint8_t)(scale | (selected ? 4 : 0));
     if (row_valid[row] && row_style[row] == style && !strcmp(row_cache[row], clipped)) return;
     menu_font_text(row*16, clipped, scale, selected);
@@ -38,10 +39,7 @@ static void stop_all(const ControlSnapshot *s) {
 void debug_view_init(void) {
     menu_init(&menu);
     drawn_page = (MenuPage)255;
-    tft180_init();
-    tft180_set_dir(TFT180_CROSSWISE);
-    tft180_set_font(TFT180_8X16_FONT);
-    tft180_set_color(0x0000, 0xffff);
+    menu_display_init();
     clear_screen();
     /* UART3 is kept exclusively binary once VOFA is enabled. */
 }
@@ -71,6 +69,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     case MENU_START:
         if (s->mode != RUN_STATIC_DEBUG) { note("stop before start"); break; }
         if (!camera_frame_set_running(true)) { note("camera init failed"); break; }
+        app_control_camera_ready(true);
         start_pending = true; start_ms = board_time_ms();
         note("checking start..."); break;
     case MENU_RUN30:
@@ -83,8 +82,11 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         app_exchange_request(vofa_enabled && closed_ready?REQ_SPEED_DEBUG:REQ_RUN30);
         note(vofa_open_loop?(s->feedback.valid?"OPEN30 speed view":"OPEN30 meas N/A"):vofa_enabled?"VOFA speed PI":"run30: OPEN LOOP");
         break;
-    case MENU_CAMERA:
-        note(camera_frame_set_running(true) ? "camera starting" : "camera init failed"); break;
+    case MENU_CAMERA: {
+        bool ok=camera_frame_set_running(true);
+        app_control_camera_ready(ok);
+        note(ok ? "camera starting" : "camera init failed"); break;
+    }
     case MENU_STOP: stop_all(s); break;
     case MENU_APPLY_SAVE: {
         AppParam candidate=g_app_param;
@@ -111,10 +113,14 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         line(7, "U/D OK K1:BACK"); return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
-        line(1, message);
-        if (now - last_image > 1000) line(4, "no fresh frame");
+        if (now - last_image > 1000) {
+            line(1, message);
+            if(camera_frame_init_status()) {
+                snprintf(text,sizeof text,"camera init E%u",camera_frame_init_status()); line(4,text);
+            } else line(4, "no fresh frame");
+        }
         snprintf(text, sizeof text, "M%u >back OK/K1", (unsigned)s->mode);
-        styled_line(7,text,1,true); return;
+        styled_line(9,text,1,true); return;
     }
     if (menu.page != MENU_KEYPAD) line(1, message);
     if (menu.page == MENU_KEYPAD) {
@@ -195,7 +201,7 @@ void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const Vision
     if ((menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) && now - last_image >= 200) {
         last_image = now;
         if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
-        tft180_show_gray_image(0, 32, f->pixels, f->width, f->height, 160, 80, 0);
-        row_valid[4] = false;
+        menu_display_camera(f->pixels, f->width, f->height, f->stride);
+        for(unsigned row=1;row<9;row++) row_valid[row] = false;
     }
 }

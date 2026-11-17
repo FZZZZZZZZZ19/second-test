@@ -1,0 +1,20 @@
+{
+  "archive_sha256": "fe0e951ac3f6ba626d999c952dc06462bdf9f2b39e8daa07a50ef2a8baa05a97",
+  "comparison": {
+    "zf_device_mt9v03x_dvp.c": {
+      "working_sha256": "9da65d0cc101de975a4fa59ba410aabe3f2a9b119fff82edf6dbbaa79d8469c1",
+      "current_sha256": "9da65d0cc101de975a4fa59ba410aabe3f2a9b119fff82edf6dbbaa79d8469c1",
+      "bytes_equal": true
+    },
+    "zf_device_mt9v03x_dvp.h": {
+      "working_sha256": "3f08c5a388151c742e7a16515d7ca5e8fc8e22ce4031bf12cde38c66834a838b",
+      "current_sha256": "3f08c5a388151c742e7a16515d7ca5e8fc8e22ce4031bf12cde38c66834a838b",
+      "bytes_equal": true
+    },
+    "libzf_device_config.a": {
+      "working_sha256": "01f64278869c5991dc713743b91e8c828a68c7a182a3c39c0d8b72544ca769ac",
+      "current_sha256": "01f64278869c5991dc713743b91e8c828a68c7a182a3c39c0d8b72544ca769ac",
+      "bytes_equal": true
+    }
+  }
+}
