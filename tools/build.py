@@ -45,6 +45,9 @@ def main():
         flags = common + [flag for item in inc for flag in ['-I', str(ROOT / item)]]
         if src.suffix == '.c':
             flags += ['-std=gnu11', '-Wall', '-Wextra']
+            if src.name in ['zf_driver_soft_iic.c','zf_driver_dvp.c','zf_device_mt9v03x_dvp.c','zf_device_camera.c']:
+                # Match the known-working E02_uart_demo low-level camera build.
+                flags += ['-march=rv32imafc','-O0','-mno-save-restore','-fsigned-char']
             if 'User' in src.relative_to(ROOT).parts and src.name.startswith(('main.c', 'app_', 'board_', 'camera_frame', 'debug_view', 'motor', 'motion_plan', 'param_store', 'path_control', 'run_manager', 'side_encoder', 'speed_control', 'track_element', 'vehicle_', 'vision_')):
                 flags += ['-Werror']
         cmd = [gcc, *flags, '-c', str(src), '-o', str(obj)]

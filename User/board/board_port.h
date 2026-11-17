@@ -14,8 +14,8 @@ void board_motor_write_en(SideId side, uint32_t duty);
 void board_motor_write_ph(SideId side, bool level);
 void board_encoder_init(void);
 uint16_t board_encoder_raw16(SideId side);
-bool board_camera_hold_after_frame_isr(void);
-bool board_camera_restart_full_frame(void);
+bool board_camera_stop(void);
+bool board_camera_start(void);
 void board_controls_init(void);
 uint8_t board_key_code(void);
 #endif

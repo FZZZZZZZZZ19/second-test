@@ -83,23 +83,19 @@ void board_encoder_init(void) {
 uint16_t board_encoder_raw16(SideId s) {
     return (uint16_t)encoder_get_count(s == SIDE_LEFT ? BOARD_LEFT_ENCODER : BOARD_RIGHT_ENCODER);
 }
-bool board_camera_hold_after_frame_isr(void) {
+bool board_camera_stop(void) {
     DVP->CR0 &= (uint8_t)~RB_DVP_ENABLE;
     DVP->CR1 &= (uint8_t)~RB_DVP_DMA_EN;
     board_memory_barrier();
     return !(DVP->CR0 & RB_DVP_ENABLE);
 }
-bool board_camera_restart_full_frame(void) {
-    DVP->CR0 &= (uint8_t)~RB_DVP_ENABLE;
-    DVP->CR1 |= RB_DVP_ALL_CLR | RB_DVP_RCV_CLR;
-    DVP->DMA_BUF0 = (uint32_t)&mt9v03x_image[0][0];
-    DVP->DMA_BUF1 = (uint32_t)&mt9v03x_image[0][0];
-    DVP->CR1 &= (uint8_t)~(RB_DVP_ALL_CLR | RB_DVP_RCV_CLR);
+bool board_camera_start(void) {
+    /* Same native initialization as the working example. No per-frame reset. */
     DVP->IFR = 0;
-    DVP->CR1 |= RB_DVP_DMA_EN;
+    dvp_camera_init((uint32 *)&mt9v03x_image[0][0], (uint32 *)&mt9v03x_image[0][0],
+                    MT9V03X_W * MT9V03X_H, MT9V03X_H);
     board_memory_barrier();
-    DVP->CR0 |= RB_DVP_ENABLE;
-    return true;
+    return (DVP->CR0 & RB_DVP_ENABLE) && (DVP->CR1 & RB_DVP_DMA_EN);
 }
 void board_controls_init(void) {
     gpio_init(B14, GPI, 1, GPI_PULL_UP);

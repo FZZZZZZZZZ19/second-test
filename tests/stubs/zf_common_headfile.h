@@ -6,7 +6,10 @@
 #define TFT180_8X16_FONT 1
 #define TIM6_PIT 6
 #define UART_3 3
+#define MT9V03X_W 188
+#define MT9V03X_H 120
 extern uint8_t mt9v03x_image[120][188];
+extern volatile uint8_t mt9v03x_finish_flag;
 int mt9v03x_init(void);
 void tft180_init(void);
 void tft180_set_dir(int d);

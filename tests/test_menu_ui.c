@@ -7,6 +7,7 @@
 #include <string.h>
 AppParam g_app_param;
 uint8_t mt9v03x_image[120][188];
+volatile uint8_t mt9v03x_finish_flag;
 static uint32_t now, requests;
 static uint8_t key=7, record[APP_PARAM_RECORD_BYTES];
 static ControlSnapshot s;
@@ -21,8 +22,8 @@ void board_memory_barrier(void) {}
 uint32_t board_time_ms(void) { return now; }
 void board_clock_init(void) { now=0; }
 uint8_t board_key_code(void) { return key; }
-bool board_camera_hold_after_frame_isr(void) { capture=false; return true; }
-bool board_camera_restart_full_frame(void) { capture=true; resumes++; return true; }
+bool board_camera_stop(void) { capture=false; return true; }
+bool board_camera_start(void) { capture=true; resumes++; return true; }
 int mt9v03x_init(void) { return camera_error; }
 void app_exchange_request(uint32_t r) { requests |= r; }
 void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
@@ -85,10 +86,14 @@ int main(void) {
     hold(); assert(capture && (requests&REQ_READY));
     requests=0; s.mode=RUN_READY; poll(5); assert(requests&REQ_START);
     s.mode=RUN_RUNNING; poll(5);
-    camera_frame_on_done_isr(); camera_frame_on_done_isr();
+    mt9v03x_image[0][0]=17; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     FrameView f; VisionFeatures v={0}; assert(camera_frame_acquire(&f));
+    assert(f.pixels[0]==17);
+    mt9v03x_image[0][0]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
+    assert(f.pixels[0]==17); /* owned frame stays stable */
     debug_view_frame(&f,&s,&v); assert(images==1);
-    camera_frame_release(f.frame_id); assert(capture);
+    unsigned restarts=resumes; camera_frame_release(f.frame_id);
+    assert(capture && resumes==restarts); /* no per-frame DMA reset */
     back(); assert(!capture && (requests&REQ_HALT));
     unsigned count=resumes; camera_frame_on_done_isr(); assert(!camera_frame_acquire(&f) && count==resumes);
     s.mode=RUN_STATIC_DEBUG; requests=0;
