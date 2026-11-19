@@ -91,7 +91,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 8); /* Measured forward encoder signs. */
+    put32(out + 4, 9); /* Measured forward encoder signs. */
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -127,7 +127,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     uint32_t schema = get32(in + 4);
-    if (schema != 2 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8)
+    if (schema != 2 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9)
         return false;
     AppParam candidate;
     memset(&candidate, 0, sizeof(candidate));
@@ -162,7 +162,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     if (schema < 7)
         load_full_frame_calibration(&candidate);
-    if (schema < 8) {
+    if (schema < 9) {
         candidate.encoder_sign[0] = CAL_ENCODER_SIGN_LEFT;
         candidate.encoder_sign[1] = CAL_ENCODER_SIGN_RIGHT;
     }
