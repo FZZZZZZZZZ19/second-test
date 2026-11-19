@@ -16,9 +16,8 @@
 #define CAL_ROW_FAR_M 0.0f
 #define CAL_CAMERA_FORWARD_M 0.0f
 
-/* User calibration 2026-11-19: 128x120 image-local coordinates (0,0).
- * Vision and LCD now share this exact center crop of the 188x120 sensor frame.
- * No 30-pixel homography conversion, no LCD-title offset in these values. */
+/* Ground calibration uses native image coordinates: image[v][u],
+ * 120 rows by 188 columns, origin at the top left of the full frame. */
 #define CAL_GROUND_H0 0.0045366634f
 #define CAL_GROUND_H1 -0.000223055189f
 #define CAL_GROUND_H2 -0.439942106f

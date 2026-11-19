@@ -1,6 +1,6 @@
 # second-test · CH32V307 智能车 V1.50
 
-当前版本V1.50.15：视觉输入和屏幕预览共用128×120灰度图，左上角为(0,0)，与队友算法及本次标定一致。底层仍按已正常工作的188×120采集，在帧交接处只裁一次中间列30～157。直接使用用户原始八个系数，投影公式不变，不再换算矩阵。八组主机测试及WCH目标构建通过，Flash86812B、RAM46092B；本版未烧录、未上板验证。固件：[second-test-v1.50.15.hex](release/v1.50.15/second-test-v1.50.15.hex)。[标定及旧Flash迁移说明](docs/2026-11-19相机标定记录.md)。
+当前版本 **V1.50.16**。摄像头与队友视觉接口使用 `image[120][188]`，即120行、188列的灰度图。列号 `u=0..187`，行号 `v=0..119`，视觉直接用整帧坐标和原始八参计算地面位置。屏幕宽128像素，预览显示原图第30～157列。 [固件](release/v1.50.16/second-test-v1.50.16.hex) · [标定与参数升级说明](docs/2026-11-19相机标定记录.md)
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
@@ -51,7 +51,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 上电主菜单为 `start / para / control`。普通菜单用五向上/下选择、中键点按确认，KEY1点按返回上一级；数字键盘用四向移动、中键确认，增加SAVE直接保存。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉、电控和hardware硬件参数，数字键盘SAVE保存，para也可save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
 
-重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash记录schema=6，兼容schema=2/4/5；旧记录自动迁移视觉中心到128坐标并导入用户本次原始八参，保留其他控制和硬件参数；未标定的零值可保存，但仍不能发车。
+重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash写schema=7，兼容2/4/5/6。未标定的零值可保存，但仍不能发车。
 
 ## VOFA UART3协议与用法
 
@@ -65,6 +65,6 @@ UART3 PB10(TX)接USB转TTL的RX并共地，使用3.3V逻辑。电脑选择对应
 
 V1.3的米制路径算法继续使用，坐标、标定与符号见[V1.3说明](docs/V1.3米制路径控制.md)。
 
-相机标定路径为para → vision → camera calib，八个系数按原数值输入；小系数科学计数显示，参数记录为schema6；旧Flash迁移后停车执行一次para → save to flash，后续菜单修改按新记录保持。详见[菜单说明](docs/V1.50屏幕菜单与调试.md)。
+相机标定路径为para → vision → camera calib，八个系数按原数值输入；小系数科学计数显示，参数记录为schema7；旧Flash迁移后停车执行一次para → save to flash，后续菜单修改按新记录保持。详见[菜单说明](docs/V1.50屏幕菜单与调试.md)。
 
 V1.50.9依据[厂家手册第5页型号表](https://www.magntek.com.cn/upload/pdf/202407/MT6701_Rev.1.8.pdf)确认ACD出厂AB=1024PPR，现有`encoder_quad_init`使用TI2单通道双边沿，即2048计数/编码器轴一圈；车轮轴直连1:1，所以counts_left/right=2048。14位绝对角度的16384与TI12四倍频的4096均不适用于当前计数模式。未设置标定完成掩码：保留30%开环，可先观察左右测速正负，确认前进均为正后再启用速度闭环。目标构建Flash86884B、RAM31596B，七组主机测试通过。

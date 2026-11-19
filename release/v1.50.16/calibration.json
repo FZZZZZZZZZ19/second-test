@@ -1,0 +1,25 @@
+{
+  "firmware": "1.50.16",
+  "vision_width": 188,
+  "vision_height": 120,
+  "vision_stride": 188,
+  "origin": "native full frame top-left (0,0)",
+  "sensor_width": 188,
+  "sensor_height": 120,
+  "sensor_crop_left": 0,
+  "homography": [
+    0.0045366634,
+    -0.000223055189,
+    -0.439942106,
+    -0.000210106974,
+    -0.0030013693,
+    0.561728764,
+    0.000546354536,
+    0.0137539169
+  ],
+  "parameter_schema": 7,
+  "hardware_verified": false,
+  "lcd_crop_left": 30,
+  "lcd_width": 128,
+  "lcd_top": 16
+}

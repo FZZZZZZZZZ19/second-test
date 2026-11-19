@@ -22,10 +22,9 @@ bool camera_frame_init(void) {
 uint8_t camera_frame_init_status(void) { return init_status; }
 void camera_frame_on_done_isr(void) {
     if (!enabled || state == FRAME_PROCESSING || state == FRAME_FAILED) return;
-    enum { CROP_LEFT = (MT9V03X_W - APP_WIDTH) / 2u };
-    _Static_assert(APP_WIDTH <= MT9V03X_W && APP_HEIGHT <= MT9V03X_H, "crop exceeds sensor image");
-    for(unsigned y=0;y<APP_HEIGHT;y++)
-        memcpy(stable_image[y], &mt9v03x_image[y][CROP_LEFT], APP_WIDTH);
+    _Static_assert(APP_WIDTH == MT9V03X_W && APP_HEIGHT == MT9V03X_H,
+                   "vision and calibration require the full native frame");
+    memcpy(stable_image, mt9v03x_image, sizeof stable_image);
     capture_ms = board_time_ms(); frame_id++;
     board_memory_barrier(); state = FRAME_READY;
 }

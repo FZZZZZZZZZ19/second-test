@@ -21,8 +21,7 @@ void menu_display_rgb(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_
 void menu_display_camera(const uint8_t *pixels,uint16_t width,uint16_t height,uint16_t stride) {
     if(!pixels || width<128 || height<120 || stride<width) return;
     unsigned offset=(width-128)/2;
-    /* Vision passes the already-cropped 128x120 image: offset is zero.
-     * Wider diagnostic input can still be centered, without changing vision. */
+    /* The panel shows native columns 30..157 at LCD rows 16..135. */
     for(unsigned row=0;row<120;row++)
         st7735s_show_gray_image(0,16+row,(uint8_t *)(pixels+row*stride+offset),128,1);
 }
