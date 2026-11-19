@@ -16,15 +16,20 @@
 #define CAL_ROW_FAR_M 0.0f
 #define CAL_CAMERA_FORWARD_M 0.0f
 
-/* Pixel (x,y) -> ground (right,forward), homogeneous denominator h6*x+h7*y+1. */
-#define CAL_GROUND_H0 0.0f
-#define CAL_GROUND_H1 0.0f
-#define CAL_GROUND_H2 0.0f
-#define CAL_GROUND_H3 0.0f
-#define CAL_GROUND_H4 0.0f
-#define CAL_GROUND_H5 0.0f
-#define CAL_GROUND_H6 0.0f
-#define CAL_GROUND_H7 0.0f
+/* User calibration 2026-11-19 was fitted in the V1.50.13 128x120 PREVIEW,
+ * with its own top-left (0,0), excluding the LCD's 16-pixel title.
+ * Vision still uses full 188x120 pixels: preview_u = raw_u - 30, preview_v = raw_v.
+ * These are H_raw = H_preview * translate(-30,0), normalized to H_raw[2][2]=1.
+ * Original supplied coefficients and Flash input values are in
+ * docs/2026-11-19相机标定记录.md. Saved Flash remains authoritative. */
+#define CAL_GROUND_H0 0.004612260964f
+#define CAL_GROUND_H1 -0.0002267721284f
+#define CAL_GROUND_H2 -0.5856410265f
+#define CAL_GROUND_H3 -0.0002136081457f
+#define CAL_GROUND_H4 -0.003051383421f
+#define CAL_GROUND_H5 0.5774975419f
+#define CAL_GROUND_H6 0.0005554588279f
+#define CAL_GROUND_H7 0.01398310903f
 #define CAL_MASK 0u
 #define CAL_CAPTURE_VALIDATED 0
 #define CAL_FULL_RACE 0
