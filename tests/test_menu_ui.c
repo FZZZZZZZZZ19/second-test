@@ -150,18 +150,25 @@ int main(void) {
     snapshot("build/host/menu-hardware-back.pgm");
     back(); back(); /* hardware -> para(hardware), para -> main(para) */
     click(); hold(); /* main control */
-    click(); click(); hold(); /* no calibration -> VOFA starts run30, not a fake speed loop */
-    assert((requests&REQ_RUN30) && !(requests&REQ_SPEED_DEBUG));
-    s.mode=RUN_DUTY_DEBUG; s.duty[0]=s.duty[1]=.3f; poll(100);
-    snapshot("build/host/menu-vofa-open.pgm");
+    click(); click(); hold(); /* Invalid configuration cannot start VOFA or run30. */
+    assert(!(requests&(REQ_RUN30|REQ_SPEED_DEBUG)));
+    poll(100);
+    snapshot("build/host/menu-vofa-blocked.pgm");
     back(); /* KEY1 live back stops -> control */
     s.mode=RUN_STATIC_DEBUG; s.duty[0]=s.duty[1]=0; requests=0;
     g_app_param.wheel_left_m=g_app_param.wheel_right_m=.06f;
     g_app_param.track_m=.15f; g_app_param.axle_m=.1f; g_app_param.counts_left=g_app_param.counts_right=100;
-    g_app_param.calibration_mask=7; g_app_param.debug_speed_mps=.1f; s.feedback.valid=true;
+    g_app_param.calibration_mask=0; g_app_param.debug_speed_mps=.1f; s.feedback.valid=true;
     hold(); assert(requests&REQ_SPEED_DEBUG);
     poll(20); assert(packets>0); snapshot("build/host/menu-live.pgm");
     back(); count=packets; poll(100); assert(packets==count && !capture);
+    s.mode=RUN_STATIC_DEBUG; s.feedback.delta[0]=1; s.feedback.speed_mps[0]=0;
+    click(); hold(); /* control -> VOFA target keyboard */
+    way(4); way(4); way(4); way(1); /* decimal point */
+    way(5); way(5); way(5); way(6); way(1); /* 2 */
+    way(4); way(4); way(4); way(6); way(1); /* SAVE .2 despite idle count jitter */
+    assert(fabsf(g_app_param.debug_speed_mps-.2f)<1e-6f);
+    assert(param_decode(record,&loaded,&sequence) && loaded.debug_speed_mps==g_app_param.debug_speed_mps);
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

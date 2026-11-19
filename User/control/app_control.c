@@ -79,10 +79,7 @@ void app_control_tick_isr(void) {
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_SPEED_DEBUG))) {
         bool speed_test = (requests & REQ_SPEED_DEBUG) != 0;
-        bool measured = status.feedback.valid &&
-            (g_app_param.calibration_mask & (APP_CAL_GEOMETRY | APP_CAL_ENCODER | APP_CAL_DIRECTION)) ==
-            (APP_CAL_GEOMETRY | APP_CAL_ENCODER | APP_CAL_DIRECTION);
-        if (!speed_test || (measured && param_valid(&g_app_param) && g_app_param.debug_speed_mps > 0)) {
+        if (!speed_test || (status.feedback.valid && param_valid(&g_app_param) && g_app_param.debug_speed_mps > 0)) {
             status.mode = speed_test ? RUN_SPEED_DEBUG : RUN_DUTY_DEBUG;
             status.reason = STOP_NONE;
             memset(pi, 0, sizeof(pi)); memset(&plan, 0, sizeof(plan));
