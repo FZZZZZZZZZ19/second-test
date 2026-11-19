@@ -2,7 +2,7 @@
 #define VISION_TUNING_H
 #include "vehicle_param.h"
 static inline void vision_param_defaults(AppParam *p) {
-    p->center_x_px = 93.5f;
+    p->center_x_px = (APP_WIDTH - 1u) * .5f;
     p->element_timeout_s = 20;
     p->confirm_ms = 80;
     p->release_ms = 120;

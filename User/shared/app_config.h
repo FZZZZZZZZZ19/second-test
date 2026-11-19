@@ -1,8 +1,8 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.50.14"
+#define APP_VERSION "1.50.15"
 #define APP_CONTROL_PERIOD_MS 5u
-#define APP_WIDTH 188u
+#define APP_WIDTH 128u
 #define APP_HEIGHT 120u
 #define APP_ROW_STEP 4u
 #define APP_ROWS (APP_HEIGHT / APP_ROW_STEP)

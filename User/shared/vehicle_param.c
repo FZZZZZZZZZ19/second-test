@@ -2,6 +2,7 @@
 #include "control_tuning.h"
 #include "core_math.h"
 #include "vision_tuning.h"
+#include "vehicle_calibration.h"
 #include <math.h>
 #include <string.h>
 #define PARAM_COUNT(n) +1
@@ -90,7 +91,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 5);
+    put32(out + 4, 6); /* 128x120 image-local vision coordinates */
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -114,8 +115,26 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     put32(out + 252, 0x434F4D54u);
     return true;
 }
+static bool migrate_188_to_128(AppParam *p) {
+    if(!isfinite(p->center_x_px) || p->center_x_px<0 || p->center_x_px>=188) return false;
+    if(!isfinite(p->row_jump_px) || !isfinite(p->width_near_px) || !isfinite(p->width_far_px) ||
+       p->row_jump_px<1 || p->row_jump_px>188 || p->width_near_px<1 || p->width_near_px>188 ||
+       p->width_far_px<1 || p->width_far_px>188) return false;
+    p->center_x_px=app_clamp(p->center_x_px-30,0,APP_WIDTH-1);
+    p->row_jump_px=fminf(p->row_jump_px,APP_WIDTH);
+    p->width_near_px=fminf(p->width_near_px,APP_WIDTH);
+    p->width_far_px=fminf(p->width_far_px,APP_WIDTH);
+    /* Coordinate-contract upgrade: use the user's newly supplied 128x120
+     * calibration instead of letting old full-image matrices overwrite it.
+     * This runs only for schema 2/4/5; schema 6 keeps later menu edits intact. */
+    p->ground_h0=CAL_GROUND_H0; p->ground_h1=CAL_GROUND_H1;
+    p->ground_h2=CAL_GROUND_H2; p->ground_h3=CAL_GROUND_H3;
+    p->ground_h4=CAL_GROUND_H4; p->ground_h5=CAL_GROUND_H5;
+    p->ground_h6=CAL_GROUND_H6; p->ground_h7=CAL_GROUND_H7;
+    return true;
+}
 bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_t *seq) {
-    if (!in || !p || !seq || get32(in) != 0x53545631u || (get32(in + 4) != 2 && get32(in + 4) != 4 && get32(in + 4) != 5) ||
+    if (!in || !p || !seq || get32(in) != 0x53545631u || (get32(in + 4) != 2 && get32(in + 4) != 4 && get32(in + 4) != 5 && get32(in + 4) != 6) ||
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     AppParam candidate;
@@ -130,7 +149,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     APP_FLOAT_FIELDS(DECODE)
 #undef DECODE
-    if (get32(in + 4) != 5) {
+    if (get32(in + 4) < 5) {
         candidate.body_length_m = candidate.body_width_m = 0; n-=2;
     }
     if (get32(in + 4) == 2) {
@@ -143,6 +162,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     candidate.threshold = (uint8_t)get32(in + 24);
     candidate.encoder_sign[0] = (get32(in + 28) & 1) ? -1 : 1;
     candidate.encoder_sign[1] = (get32(in + 28) & 2) ? -1 : 1;
+    if(get32(in+4)<6 && !migrate_188_to_128(&candidate)) return false;
     if (!param_storable(&candidate))
         return false;
     *p = candidate;

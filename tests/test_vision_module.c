@@ -8,7 +8,7 @@ static uint8_t image[APP_WIDTH * APP_HEIGHT];
 int main(void) {
     AppParam p = {0};
     vision_param_defaults(&p);
-    p.ground_h0=.001f; p.ground_h2=-.0935f; p.ground_h4=-.004f; p.ground_h5=.6f;
+    p.ground_h0=.001f; p.ground_h2=-.001f*p.center_x_px; p.ground_h4=-.004f; p.ground_h5=.6f;
     p.speed_normal = .2f;
     for (unsigned y = 0; y < APP_HEIGHT; y++)
         for (unsigned x = 110; x < 120; x++)
@@ -32,7 +32,7 @@ int main(void) {
     for(unsigned i=0;i<APP_ROWS;i++) {
         float z=.6f-.004f*(APP_HEIGHT-3u-i*APP_ROW_STEP);
         curve.paths[0].valid_rows|=1u<<i;
-        curve.paths[0].x[i]=93.5f+100*z*z;
+        curve.paths[0].x[i]=p.center_x_px+100*z*z;
     }
     assert(vision_target_step(&curve,&decision,&p,&out) && out.curvature>0);
     float k=out.curvature;

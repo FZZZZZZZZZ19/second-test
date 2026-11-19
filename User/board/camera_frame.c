@@ -10,7 +10,7 @@ static volatile uint8_t init_status;
 static volatile uint32_t frame_id, capture_ms;
 /* Native DVP runs continuously. Separate application-owned image uses the
  * same 64 KiB SRAM configuration as the working example, without DMA resets. */
-static uint8_t stable_image[MT9V03X_H][MT9V03X_W] __attribute__((aligned(4)));
+static uint8_t stable_image[APP_HEIGHT][APP_WIDTH] __attribute__((aligned(4)));
 bool camera_frame_init(void) {
     camera_initialized = false; enabled = false;
     state = FRAME_CAPTURE; frame_id = 0; mt9v03x_finish_flag = 0;
@@ -22,7 +22,10 @@ bool camera_frame_init(void) {
 uint8_t camera_frame_init_status(void) { return init_status; }
 void camera_frame_on_done_isr(void) {
     if (!enabled || state == FRAME_PROCESSING || state == FRAME_FAILED) return;
-    memcpy(stable_image, mt9v03x_image, sizeof stable_image);
+    enum { CROP_LEFT = (MT9V03X_W - APP_WIDTH) / 2u };
+    _Static_assert(APP_WIDTH <= MT9V03X_W && APP_HEIGHT <= MT9V03X_H, "crop exceeds sensor image");
+    for(unsigned y=0;y<APP_HEIGHT;y++)
+        memcpy(stable_image[y], &mt9v03x_image[y][CROP_LEFT], APP_WIDTH);
     capture_ms = board_time_ms(); frame_id++;
     board_memory_barrier(); state = FRAME_READY;
 }

@@ -56,7 +56,7 @@ static void snapshot(const char *path) {
 }
 void tft180_show_string(uint16_t x,uint16_t y,const char *text) { assert(x<160 && y<128 && strlen(text)<=26); }
 void menu_display_camera(const uint8_t *p,uint16_t w,uint16_t h,uint16_t stride) {
-    assert(p && w==188 && h==120 && stride==188); images++;
+    assert(p && w==APP_WIDTH && h==APP_HEIGHT && stride==APP_WIDTH); images++;
 }
 void uart_write_buffer(int uart,const uint8_t *p,unsigned len) {
     assert(uart==3 && len==20 && p[18]==0x80 && p[19]==0x7f);
@@ -86,10 +86,15 @@ int main(void) {
     hold(); assert(capture && (requests&REQ_READY));
     requests=0; s.mode=RUN_READY; poll(5); assert(requests&REQ_START);
     s.mode=RUN_RUNNING; poll(5);
-    mt9v03x_image[0][0]=17; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
+    mt9v03x_image[0][29]=255; mt9v03x_image[0][30]=17;
+    mt9v03x_image[0][157]=23; mt9v03x_image[0][158]=255;
+    mt9v03x_image[119][30]=31; mt9v03x_image[119][157]=47;
+    mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     FrameView f; VisionFeatures v={0}; assert(camera_frame_acquire(&f));
+    assert(f.width==128 && f.height==120 && f.stride==128);
     assert(f.pixels[0]==17);
-    mt9v03x_image[0][0]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
+    assert(f.pixels[127]==23 && f.pixels[119*128]==31 && f.pixels[120*128-1]==47);
+    mt9v03x_image[0][30]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     assert(f.pixels[0]==17); /* owned frame stays stable */
     debug_view_frame(&f,&s,&v); assert(images==1);
     unsigned restarts=resumes; camera_frame_release(f.frame_id);

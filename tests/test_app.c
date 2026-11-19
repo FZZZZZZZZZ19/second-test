@@ -33,7 +33,7 @@ static AppParam fixture(void) {
     p.row_distance_far_m = .5f;
     p.camera_forward_m = .1f;
     p.calibration_mask = 31;
-    p.ground_h0=.001f; p.ground_h2=-.0935f; p.ground_h4=-.004f; p.ground_h5=.6f;
+    p.ground_h0=.001f; p.ground_h2=-.001f*p.center_x_px; p.ground_h4=-.004f; p.ground_h5=.6f;
     p.lateral_kp=2;
     p.flags = 2;
     return p;
@@ -149,7 +149,7 @@ static void vision_and_path(void) {
     CHECK(vision_line_process(&f, &p, &v));
     CHECK(v.confidence == 0);
     memset(pixels, 0, sizeof(pixels));
-    for (int x = 10; x < 160; x += 30)
+    for (int x = 10; x < (int)APP_WIDTH; x += 22)
         stripe(x, 6);
     f.frame_id++;
     CHECK(vision_line_process(&f, &p, &v));
@@ -169,9 +169,9 @@ static void vision_and_path(void) {
     memset(pixels, 0, sizeof(pixels));
     for (unsigned y = 0; y < APP_HEIGHT; y++) {
         int gap = y > 80 ? 0 : (80 - (int)y) / 2;
-        for (int x = 90 - gap; x < 99 - gap; x++)
+        for (int x = (int)APP_WIDTH/2 - 4 - gap; x < (int)APP_WIDTH/2 + 5 - gap; x++)
             pixels[y * APP_WIDTH + (unsigned)x] = 255;
-        for (int x = 90 + gap; x < 99 + gap; x++)
+        for (int x = (int)APP_WIDTH/2 - 4 + gap; x < (int)APP_WIDTH/2 + 5 + gap; x++)
             pixels[y * APP_WIDTH + (unsigned)x] = 255;
     }
     f.frame_id++;
@@ -239,7 +239,7 @@ static VisionFeatures synthetic(uint32_t id, uint32_t ms, bool split) {
         f.paths[j].valid_rows = (1u << APP_ROWS) - 1;
         f.paths[j].count = APP_ROWS;
         for (unsigned i = 0; i < APP_ROWS; i++)
-            f.paths[j].x[i] = split ? (j ? 130 : 50) : 94;
+            f.paths[j].x[i] = split ? (j ? APP_WIDTH/2+40 : APP_WIDTH/2-40) : APP_WIDTH/2;
     }
     return f;
 }

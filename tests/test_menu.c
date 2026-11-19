@@ -1,5 +1,6 @@
 
 #include "menu_model.h"
+#include "vehicle_calibration.h"
 #include "core_math.h"
 #include "maintenance.h"
 #include <assert.h>
@@ -158,10 +159,25 @@ int main(void) {
     p.body_length_m=.3f; p.body_width_m=.2f;
     assert(param_encode(&p,8,record) && param_decode(record,&q,&seq));
     assert(q.body_length_m==.3f && q.body_width_m==.2f);
+    uint8_t schema5[APP_PARAM_RECORD_BYTES]; memcpy(schema5,record,sizeof schema5);
+    float schema5_center=93.5f; memcpy(schema5+32+23*4,&schema5_center,4);
+    put32(schema5+4,5); put32(schema5+248,app_crc32(schema5,248));
+    assert(param_decode(schema5,&q,&seq) && q.center_x_px==63.5f);
+    assert(q.body_length_m==.3f && q.body_width_m==.2f && q.debug_speed_mps==.2f);
+    assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h2==CAL_GROUND_H2);
+    float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
     put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
     put32(record+248,app_crc32(record,248));
     assert(param_decode(record,&q,&seq) && q.body_length_m==0 && q.body_width_m==0 && q.debug_speed_mps==.2f);
-    assert(!memcmp(&q,&p,50*4)); /* previous fields and saved gains preserved */
+    assert(q.kp_left==p.kp_left && q.ki_right==p.ki_right && q.track_m==p.track_m);
+    assert(fabsf(q.center_x_px-63.5f)<1e-6f);
+    assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h7==CAL_GROUND_H7);
+    uint8_t migrated[APP_PARAM_RECORD_BYTES];
+    q.center_x_px=61; q.ground_h2=-.42f;
+    assert(param_encode(&q,9,migrated) && migrated[4]==6);
+    AppParam again; uint32_t migrated_seq;
+    assert(param_decode(migrated,&again,&migrated_seq));
+    assert(again.center_x_px==61 && again.ground_h2==-.42f && migrated_seq==9);
     put32(record+4,2); put32(record+12,49); memset(record+32+49*4,255,4);
     put32(record+248,app_crc32(record,248));
     assert(param_decode(record,&q,&seq) && q.debug_speed_mps==0 && q.kp_left==p.kp_left);
