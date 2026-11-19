@@ -6,7 +6,7 @@ MaintenanceCheck maintenance_stop_check(const ControlSnapshot *s) {
     if (s->duty[0]!=0 || s->duty[1]!=0) return MAINT_OUTPUT;
     /* Uncalibrated raw counts are not a speed measurement. Saving cannot arm or drive motors. */
     if (s->feedback.valid && (!isfinite(s->feedback.speed_mps[0]) || !isfinite(s->feedback.speed_mps[1]) ||
-        fabsf(s->feedback.speed_mps[0])>=.01f || fabsf(s->feedback.speed_mps[1])>=.01f)) return MAINT_MOTION;
+        fabsf(s->feedback.speed_mps[0])>=.5f || fabsf(s->feedback.speed_mps[1])>=.5f)) return MAINT_MOTION;
     return MAINT_OK;
 }
 MaintenanceCheck maintenance_save_check(const ControlSnapshot *s,const AppParam *p) {

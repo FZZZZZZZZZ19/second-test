@@ -96,7 +96,9 @@ int main(void) {
     h.selected=2; menu_confirm(&h); h.selected=2; assert(menu_confirm(&h)==MENU_VOFA);
     menu_back(&h); assert(h.page==MENU_CONTROL && h.selected==2);
     h.selected=3; menu_confirm(&h); menu_back(&h); assert(h.selected==3);
-    h.selected=5; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
+    h.selected=5; assert(menu_confirm(&h)==MENU_RUN5);
+    assert(menu_back(&h)==MENU_STOP && h.selected==5);
+    h.selected=6; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
     menu_init(&h); h.selected=1; menu_confirm(&h); menu_confirm(&h);
     h.selected=3; menu_confirm(&h); assert(h.page==MENU_CAMERA_CAL && menu_count(&h)==9);
     AppParam calibration; param_defaults(&calibration);
@@ -132,7 +134,9 @@ int main(void) {
     assert(maintenance_save_check(&stopped,&p)==MAINT_OK); /* real-board regression: uncalibrated raw activity */
     stopped.feedback.valid=true; stopped.feedback.delta[1]=1;
     assert(maintenance_save_check(&stopped,&p)==MAINT_OK);
-    stopped.feedback.speed_mps[1]=.02f; assert(maintenance_save_check(&stopped,&p)==MAINT_MOTION);
+    stopped.feedback.speed_mps[1]=.49f;
+    assert(maintenance_save_check(&stopped,&p)==MAINT_OK);
+    stopped.feedback.speed_mps[1]=.5f; assert(maintenance_save_check(&stopped,&p)==MAINT_MOTION);
     stopped.feedback.delta[1]=0; stopped.feedback.speed_mps[1]=NAN;
     assert(maintenance_save_check(&stopped,&p)==MAINT_MOTION);
     stopped.feedback.valid=false; stopped.duty[0]=.3f;

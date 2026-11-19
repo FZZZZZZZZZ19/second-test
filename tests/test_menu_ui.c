@@ -169,6 +169,9 @@ int main(void) {
     way(4); way(4); way(4); way(6); way(1); /* SAVE .2 despite idle count jitter */
     assert(fabsf(g_app_param.debug_speed_mps-.2f)<1e-6f);
     assert(param_decode(record,&loaded,&sequence) && loaded.debug_speed_mps==g_app_param.debug_speed_mps);
+    requests=0; click(); click(); hold(); /* target -> stop -> run 5 */
+    assert((requests&REQ_RUN5) && !(requests&(REQ_RUN30|REQ_SPEED_DEBUG)));
+    back(); assert(requests&REQ_HALT);
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

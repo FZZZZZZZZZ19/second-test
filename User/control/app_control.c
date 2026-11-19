@@ -4,6 +4,7 @@
 #include "vehicle_calibration.h"
 #include <math.h>
 #include <string.h>
+static uint32_t debug_duty_ticks;
 static ControlSnapshot status;
 static MotionRequest good;
 static SpeedPiState pi[2];
@@ -16,6 +17,7 @@ void app_control_camera_ready(bool ok) {
     board_irq_restore(t);
 }
 void app_control_init(void) {
+    debug_duty_ticks = 3000;
     memset(&status, 0, sizeof(status));
     status.mode = RUN_STATIC_DEBUG;
     status.session_id = 1;
@@ -77,9 +79,10 @@ void app_control_tick_isr(void) {
         status.reason = STOP_LOCAL;
         status.session_id++;
         requests = 0;
-    } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_SPEED_DEBUG))) {
+    } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_RUN5 | REQ_SPEED_DEBUG))) {
         bool speed_test = (requests & REQ_SPEED_DEBUG) != 0;
         if (!speed_test || (status.feedback.valid && param_valid(&g_app_param) && g_app_param.debug_speed_mps > 0)) {
+            debug_duty_ticks = (requests & REQ_RUN5) ? 500 : 3000;
             status.mode = speed_test ? RUN_SPEED_DEBUG : RUN_DUTY_DEBUG;
             status.reason = STOP_NONE;
             memset(pi, 0, sizeof(pi)); memset(&plan, 0, sizeof(plan));
@@ -100,9 +103,9 @@ void app_control_tick_isr(void) {
     }
     if (status.mode == RUN_DUTY_DEBUG) {
         /* Explicit open-loop diagnostic command, independent of racing duty_limit. */
-        status.duty[0] = status.duty[1] = .30f;
-        board_motor_write_en(SIDE_LEFT, 3000);
-        board_motor_write_en(SIDE_RIGHT, 3000);
+        status.duty[0] = status.duty[1] = debug_duty_ticks / 10000.0f;
+        board_motor_write_en(SIDE_LEFT, debug_duty_ticks);
+        board_motor_write_en(SIDE_RIGHT, debug_duty_ticks);
     } else if (status.mode == RUN_SPEED_DEBUG) {
         if (!status.feedback.valid || !param_valid(&g_app_param)) fault(STOP_ENCODER);
         else {

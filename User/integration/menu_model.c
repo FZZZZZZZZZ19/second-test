@@ -41,7 +41,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_VISION: return 5;
     case MENU_CAMERA_CAL: return 9;
     case MENU_PARAMS: return 13;
-    case MENU_CONTROL: return 6;
+    case MENU_CONTROL: return 7;
     case MENU_KEYPAD: return 16;
     case MENU_LIVE: return 2;
     default: return 1;
@@ -55,7 +55,7 @@ const char *menu_title(const MenuModel *m) {
 const char *menu_label(const MenuModel *m, unsigned i) {
     static const char *const main_items[] = {"start","para","control"};
     static const char *const para_items[] = {"vision","control","hardware","save to flash","back"};
-    static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","back"};
+    static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","run 5","back"};
     if (i >= menu_count(m)) return "";
     switch (m->page) {
     case MENU_MAIN: return main_items[i];
@@ -122,9 +122,10 @@ MenuAction menu_confirm(MenuModel *m) {
         break;
     case MENU_CONTROL:
         if (i == 0 || i == 2) { enter(m, MENU_LIVE); return i ? MENU_VOFA : MENU_RUN30; }
+        if (i == 5) { enter(m, MENU_LIVE); return MENU_RUN5; }
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
         if (i == 3) edit(m, 9);
-        else { if (i == 5) return menu_back(m); return MENU_STOP; }
+        else { if (i == 6) return menu_back(m); return MENU_STOP; }
         break;
     case MENU_KEYPAD: {
         size_t n = strlen(m->input);

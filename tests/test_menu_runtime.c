@@ -28,6 +28,10 @@ int main(void) {
     tick(REQ_RUN30); assert(output.mode==RUN_DUTY_DEBUG && fabsf(duty[0]-.3f)<1e-6f && duty[0]==duty[1]);
     tick(0); assert(output.mode==RUN_DUTY_DEBUG); /* no camera required */
     tick(REQ_HALT|REQ_RUN30); assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0); /* stop wins */
+    tick(REQ_RUN5); assert(output.mode==RUN_DUTY_DEBUG);
+    assert(fabsf(duty[0]-.05f)<1e-6f && duty[0]==duty[1]);
+    tick(0); assert(fabsf(duty[0]-.05f)<1e-6f);
+    tick(REQ_HALT|REQ_RUN5); assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0);
     tick(REQ_SPEED_DEBUG); assert(output.mode==RUN_STATIC_DEBUG); /* no feedback/calibration */
     g_app_param.wheel_left_m=g_app_param.wheel_right_m=.06f;
     g_app_param.track_m=.15f; g_app_param.axle_m=.1f;

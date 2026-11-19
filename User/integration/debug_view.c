@@ -71,6 +71,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         start_pending = true; start_ms = board_time_ms();
         note("checking start..."); break;
     case MENU_RUN30:
+    case MENU_RUN5:
     case MENU_VOFA:
         if (s->mode != RUN_STATIC_DEBUG) { note("blocked: stop first"); break; }
         vofa_enabled = a == MENU_VOFA;
@@ -79,8 +80,8 @@ static void action(MenuAction a, const ControlSnapshot *s) {
             if (!s->feedback.valid) { note("VOFA: NO ENCODER"); break; }
             if (g_app_param.debug_speed_mps <= 0) { note("VOFA: SET TARGET"); break; }
         }
-        app_exchange_request(vofa_enabled ? REQ_SPEED_DEBUG : REQ_RUN30);
-        note(vofa_enabled ? "VOFA speed PI" : "run30: OPEN LOOP");
+        app_exchange_request(vofa_enabled ? REQ_SPEED_DEBUG : a == MENU_RUN5 ? REQ_RUN5 : REQ_RUN30);
+        note(vofa_enabled ? "VOFA speed PI" : a == MENU_RUN5 ? "run5: OPEN LOOP" : "run30: OPEN LOOP");
         break;
     case MENU_CAMERA: {
         bool ok=camera_frame_set_running(true);
