@@ -9,9 +9,9 @@
 #define CAL_AXLE_M 0.0355f
 /* MT6701CT-ACD: 1024 PPR, existing TIM TI2 x2 counting, wheel shaft 1:1.
  * Do not use 16384 (absolute angle resolution) or 4096 (TI12 x4).
- * Corrected forward rotation: both raw counts negative; apply -1 on both sides. */
+ * Latest bench report: forward raw counts left negative, right positive. */
 #define CAL_ENCODER_SIGN_LEFT (-1)
-#define CAL_ENCODER_SIGN_RIGHT (-1)
+#define CAL_ENCODER_SIGN_RIGHT 1
 #define CAL_COUNTS_LEFT 2048.0f
 #define CAL_COUNTS_RIGHT 2048.0f
 #define CAL_ROW_NEAR_M 0.0f

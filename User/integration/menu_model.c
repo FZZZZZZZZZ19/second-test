@@ -48,7 +48,7 @@ unsigned menu_count(const MenuModel *m) {
     }
 }
 const char *menu_title(const MenuModel *m) {
-    static const char *const titles[] = {"V1.50 MAIN","para","vision","control parameters",
+    static const char *const titles[] = {"V" APP_VERSION " MAIN","para","vision","control parameters",
         "control","number input","start / camera","image","motor test","hardware","camera calib"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
