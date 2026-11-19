@@ -4,10 +4,12 @@
  * H3[1..4] -> driver CN5[1..4] with a straight 1:1 harness.
  */
 #define BOARD_PINMAP_CONFIRMED 1
-#define BOARD_LEFT_EN TIM1_PWM_MAP3_CH1_E9
-#define BOARD_RIGHT_EN TIM1_PWM_MAP3_CH4_E14
-#define BOARD_LEFT_PH E11
-#define BOARD_RIGHT_PH E13
+/* Vehicle sides measured on the assembled car: driver U2 is left, U1 right.
+ * Encoder TIM2/TIM4 already match vehicle left/right independently. */
+#define BOARD_LEFT_EN TIM1_PWM_MAP3_CH4_E14
+#define BOARD_RIGHT_EN TIM1_PWM_MAP3_CH1_E9
+#define BOARD_LEFT_PH E13
+#define BOARD_RIGHT_PH E11
 /* User bench observation 2026-11-19: both wheels run backward at PH=1; use PH=0 for forward motion. */
 #define BOARD_LEFT_PH_FORWARD 0
 #define BOARD_RIGHT_PH_FORWARD 0

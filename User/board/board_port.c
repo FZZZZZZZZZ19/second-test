@@ -58,24 +58,6 @@ uint32_t board_time_ms(void) {
 uint32_t board_time_us(void) {
     return (uint32_t)clock_us();
 }
-bool board_motor_init_zero(void) {
-    /* Drive EN low as GPIO before selecting PWM alternate functions. */
-    gpio_init(E9, GPO, 0, GPO_PUSH_PULL);
-    gpio_init(E14, GPO, 0, GPO_PUSH_PULL);
-    gpio_init(BOARD_LEFT_PH, GPO, BOARD_LEFT_PH_FORWARD, GPO_PUSH_PULL);
-    gpio_init(BOARD_RIGHT_PH, GPO, BOARD_RIGHT_PH_FORWARD, GPO_PUSH_PULL);
-    pwm_init(BOARD_LEFT_EN, BOARD_PWM_HZ, 0);
-    pwm_init(BOARD_RIGHT_EN, BOARD_PWM_HZ, 0);
-    return true;
-}
-void board_motor_write_en(SideId side, uint32_t duty) {
-    if (duty > PWM_DUTY_MAX)
-        duty = 0;
-    pwm_set_duty(side == SIDE_LEFT ? BOARD_LEFT_EN : BOARD_RIGHT_EN, duty);
-}
-void board_motor_write_ph(SideId side, bool level) {
-    gpio_set_level(side == SIDE_LEFT ? BOARD_LEFT_PH : BOARD_RIGHT_PH, level ? 1 : 0);
-}
 void board_encoder_init(void) {
     encoder_quad_init(BOARD_LEFT_ENCODER, TIM2_ENCOEDER_MAP0_CH1_A0, TIM2_ENCOEDER_MAP0_CH2_A1);
     encoder_quad_init(BOARD_RIGHT_ENCODER, TIM4_ENCOEDER_MAP1_CH1_D12, TIM4_ENCOEDER_MAP1_CH2_D13);

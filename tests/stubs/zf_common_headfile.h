@@ -1,6 +1,16 @@
 #ifndef UI_TEST_ZF_H
 #define UI_TEST_ZF_H
 #include <stdint.h>
+enum { E9=0x49, E11=0x4b, E13=0x4d, E14=0x4e };
+#define TIM1_PWM_MAP3_CH1_E9 (0x03000 | E9)
+#define TIM1_PWM_MAP3_CH4_E14 (0x03300 | E14)
+#define GPO 1
+#define GPO_PUSH_PULL 1
+#define PWM_DUTY_MAX 10000u
+void gpio_init(int pin,int dir,uint8_t level,int mode);
+void gpio_set_level(int pin,uint8_t level);
+void pwm_init(int channel,uint32_t hz,uint32_t duty);
+void pwm_set_duty(int channel,uint32_t duty);
 #define TFT180_CROSSWISE 0
 #define TFT180_6X8_FONT 0
 #define TFT180_8X16_FONT 1
