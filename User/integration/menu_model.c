@@ -13,10 +13,10 @@ static const Field fields[] = {
     F("speed Kp (L+R)", kp_left, 0, 10000), F("speed Ki (L+R)", ki_left, 0, 10000),
     F("left Kp", kp_left, 0, 10000), F("left Ki", ki_left, 0, 10000),
     F("right Kp", kp_right, 0, 10000), F("right Ki", ki_right, 0, 10000),
-    F("VOFA target m/s", debug_speed_mps, 0, 5),
+    F("VOFA target m/s", debug_speed_mps, 0, APP_MAX_SPEED_MPS),
     F("duty limit 0..0.8", duty_limit, .001f, .8f),
-    F("speed limit m/s", speed_limit_mps, .001f, 5),
-    F("normal speed m/s", speed_normal, 0, 5),
+    F("speed limit m/s", speed_limit_mps, .001f, APP_MAX_SPEED_MPS),
+    F("normal speed m/s", speed_normal, 0, APP_MAX_SPEED_MPS),
     F("left FF", ff_left, 0, 10000), F("right FF", ff_right, 0, 10000),
 #define H(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1000}
     H("body length mm", body_length_m, 0, 3000), H("body width mm", body_width_m, 0, 2000),

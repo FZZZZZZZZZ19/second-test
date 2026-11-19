@@ -1,0 +1,52 @@
+{
+  "compiler": "gcc.exe (x86_64-posix-seh-rev0, Built by MinGW-Builds project) 13.2.0",
+  "modules": [
+    "app_math",
+    "vehicle_param",
+    "speed_control",
+    "motion_plan",
+    "vision_line",
+    "vision_boundary",
+    "vision_target",
+    "vision_pipeline",
+    "vehicle_progress",
+    "track_element",
+    "path_control",
+    "run_manager"
+  ],
+  "results": [
+    {
+      "profile": "default",
+      "result": "PASS: 5 groups, 138421 assertions"
+    },
+    {
+      "profile": "configured_route",
+      "result": "PASS: 5 groups, 138425 assertions"
+    },
+    {
+      "profile": "standalone_vision",
+      "result": "PASS: standalone vision, no control or board objects linked"
+    },
+    {
+      "profile": "standalone_control",
+      "result": "PASS: standalone control, synthetic VisionOutput, no vision or board objects linked"
+    },
+    {
+      "profile": "standalone_menu_ui",
+      "result": "PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds"
+    },
+    {
+      "profile": "standalone_menu",
+      "result": "PASS: five-way menu selection, KEY1 back, keypad SAVE, keypad validation, paired gains, VOFA bytes, Flash migration"
+    },
+    {
+      "profile": "standalone_display",
+      "result": "PASS: real ST7735S adapter center crop, stride, RGB565 bytes, portrait clipping"
+    },
+    {
+      "profile": "standalone_menu_runtime",
+      "result": "PASS: real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault"
+    }
+  ],
+  "status": "PASS"
+}

@@ -25,7 +25,7 @@ bool side_encoder_sample(float dt, uint32_t now, SideFeedback *out) {
             float cpr = i ? g_app_param.counts_right : g_app_param.counts_left;
             float distance = 3.14159265358979323846f * diameter * (float)d / cpr;
             float speed = distance / dt;
-            if (!isfinite(speed) || fabsf(speed) > g_app_param.speed_limit_mps * 4 + 1) {
+            if (!isfinite(speed) || fabsf(speed) > APP_MAX_SPEED_MPS) {
                 feedback.valid = false;
                 continue;
             }

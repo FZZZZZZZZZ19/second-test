@@ -12,7 +12,7 @@ static inline void control_param_defaults(AppParam *p) {
     p->ki_right = .4f;
     p->integral_limit = .2f;
     p->duty_limit = .25f;
-    p->speed_limit_mps = .4f;
+    p->speed_limit_mps = APP_MAX_SPEED_MPS;
     p->accel_mps2 = .3f;
     p->decel_mps2 = .6f;
     p->inner_ratio = .15f;
