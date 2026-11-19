@@ -171,6 +171,16 @@ int main(void) {
     put32(cropped_record+4,6); put32(cropped_record+248,app_crc32(cropped_record,248));
     assert(param_decode(cropped_record,&q,&seq) && q.center_x_px==92.5f);
     assert(q.ground_h2==CAL_GROUND_H2 && q.debug_speed_mps==.2f && q.track_m==p.track_m);
+    uint8_t old_signs[APP_PARAM_RECORD_BYTES];
+    memcpy(old_signs,record,sizeof old_signs);
+    put32(old_signs+4,7); put32(old_signs+28,0);
+    put32(old_signs+248,app_crc32(old_signs,248));
+    assert(param_decode(old_signs,&q,&seq));
+    assert(q.encoder_sign[0]==-1 && q.encoder_sign[1]==1);
+    assert(q.track_m==p.track_m && q.debug_speed_mps==p.debug_speed_mps);
+    q.encoder_sign[0]=1; q.encoder_sign[1]=-1;
+    assert(param_encode(&q,8,old_signs) && param_decode(old_signs,&q,&seq));
+    assert(q.encoder_sign[0]==1 && q.encoder_sign[1]==-1);
     float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
     put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
     put32(record+248,app_crc32(record,248));
@@ -180,7 +190,7 @@ int main(void) {
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h7==CAL_GROUND_H7);
     uint8_t migrated[APP_PARAM_RECORD_BYTES];
     q.center_x_px=61; q.ground_h2=-.42f;
-    assert(param_encode(&q,9,migrated) && migrated[4]==7);
+    assert(param_encode(&q,9,migrated) && migrated[4]==8);
     AppParam again; uint32_t migrated_seq;
     assert(param_decode(migrated,&again,&migrated_seq));
     assert(again.center_x_px==61 && again.ground_h2==-.42f && migrated_seq==9);

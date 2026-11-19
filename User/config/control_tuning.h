@@ -1,9 +1,10 @@
 #ifndef CONTROL_TUNING_H
 #define CONTROL_TUNING_H
 #include "vehicle_param.h"
+#include "vehicle_calibration.h"
 static inline void control_param_defaults(AppParam *p) {
-    p->encoder_sign[0] = 1;
-    p->encoder_sign[1] = 1;
+    p->encoder_sign[0] = CAL_ENCODER_SIGN_LEFT;
+    p->encoder_sign[1] = CAL_ENCODER_SIGN_RIGHT;
     p->encoder_tau_s = .025f;
     p->kp_left = .2f;
     p->kp_right = .2f;
