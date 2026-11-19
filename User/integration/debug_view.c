@@ -191,7 +191,7 @@ void debug_view_poll(const ControlSnapshot *s) {
 void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionFeatures *v) {
     (void)s; (void)v;
     uint32_t now = board_time_ms();
-    if ((menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) && now - last_image >= 200) {
+    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
         last_image = now;
         if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
         menu_display_camera(f->pixels, f->width, f->height, f->stride);

@@ -98,6 +98,9 @@ int main(void) {
     mt9v03x_image[0][30]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     assert(f.pixels[0]==11 && f.pixels[30]==17); /* owned frame stays stable */
     debug_view_frame(&f,&s,&v); assert(images==1);
+    FrameView next_frame=f; next_frame.frame_id++;
+    poll(33); debug_view_frame(&next_frame,&s,&v);
+    assert(images==2); /* New frames must not be throttled to 5 Hz. */
     unsigned restarts=resumes; camera_frame_release(f.frame_id);
     assert(capture && resumes==restarts); /* no per-frame DMA reset */
     back(); assert(!capture && (requests&REQ_HALT));

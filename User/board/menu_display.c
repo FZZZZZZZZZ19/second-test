@@ -21,7 +21,18 @@ void menu_display_rgb(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_
 void menu_display_camera(const uint8_t *pixels,uint16_t width,uint16_t height,uint16_t stride) {
     if(!pixels || width<128 || height<120 || stride<width) return;
     unsigned offset=(width-128)/2;
-    /* The panel shows native columns 30..157 at LCD rows 16..135. */
-    for(unsigned row=0;row<120;row++)
-        st7735s_show_gray_image(0,16+row,(uint8_t *)(pixels+row*stride+offset),128,1);
+    /* Stream the strided crop through one LCD window, without another image buffer. */
+    st7735s_set_window(0,16,127,135);
+    gpio_high(ST7735S_DC_PIN);
+    gpio_low(ST7735S_CS_PIN);
+    for (unsigned row=0; row<120; row++) {
+        const uint8_t *source=pixels+row*stride+offset;
+        for (unsigned col=0; col<128; col++) {
+            uint8_t gray=source[col];
+            uint16_t color=((gray & 0xf8u)<<8) | ((gray & 0xfcu)<<3) | (gray>>3);
+            spi_write_8bit(SPI_2,color>>8);
+            spi_write_8bit(SPI_2,color & 255u);
+        }
+    }
+    gpio_high(ST7735S_CS_PIN);
 }
