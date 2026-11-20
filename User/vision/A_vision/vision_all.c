@@ -143,6 +143,7 @@ void camera_init(void)
         int x;
         for (x = 0; x < SCUT_IMAGE_W; x++) {
             g_binary[i][x] = 0;
+            origin_image[i][x] = 0;
         }
     }
     reset_state_flag();
@@ -905,6 +906,10 @@ int match_target_line(int theta)
         for(int i = 0;i<target_r_statics;i++)
         {
             target_mid_line[i][0] = target_r_line[i][0] - theta; // 这里需要进行防出界的东西
+            if(target_mid_line[i][0] < 0)
+            {target_mid_line[i][0] = 0;}
+            else if(target_mid_line[i][0] > 188)
+            {target_mid_line[i][0] = 188;}
             target_mid_line[i][1] = target_r_line[i][1];
         }
         target_statics = target_r_statics;
@@ -915,6 +920,10 @@ int match_target_line(int theta)
         for(int i = 0;i<target_l_statics;i++)
         {
             target_mid_line[i][0] = target_l_line[i][0] + theta; // 这里需要进行防出界的东西
+            if(target_mid_line[i][0] < 0)
+            {target_mid_line[i][0] = 0;}
+            else if(target_mid_line[i][0] > 188)
+            {target_mid_line[i][0] = 188;}
             target_mid_line[i][1] = target_l_line[i][1];
         }
         target_statics = target_l_statics;
@@ -1489,6 +1498,12 @@ void reality_reset(void)
     reality_y3 = 0.0f;
 }
 
+// int experience_value;//10
+// int ww , bw;//2,2
+// int max_length;//90
+// int offset_w;//5
+// int target_dist;//65
+
 void camera_process(void)
 {
     int  thre;
@@ -1497,15 +1512,15 @@ void camera_process(void)
     /* 1) 直方图 + 大津法阈值 */
 
 
-    thre = GetThre(10);
+    thre = GetThre(experience_value);
     g_threholds = thre;
     /* 2) 二值化。必须在找起点/巡线之前完成，is_white 读的就是 g_binary。 */
     mybinary(thre);
     mypadding(2);
-    count_white(2,2);
+    count_white(ww,bw);
     limit_white();
     deal_white();
-    collate_white(90);
+    collate_white(max_length);
     if (find_start(SCUT_IMAGE_H - 3, 10)) {
         forward();
         getmin_statics();          /* 这一句现在缺失，必须补 */
@@ -1514,8 +1529,8 @@ void camera_process(void)
     }
     analyze();
     update_info();
-    match_target_line(5);
-    pred_points(65);
+    match_target_line(offset_w);
+    pred_points(target_dist);
     pixel2reality();
 }
 
