@@ -48,7 +48,7 @@ void app_control_tick_isr(void) {
     status.camera_ok = camera_ok;
     status.config_ok = param_can_arm(&g_app_param, CAL_FULL_RACE != 0) && camera_ok &&
                        CAL_VISION_V2_VALIDATED &&
-                       (!CAL_FULL_RACE || (APP_ROUTE_LENGTH > 0 && APP_FINISH_DISTANCE_M > 0));
+                       !CAL_FULL_RACE;
     if (elapsed == 0 || elapsed > 20000) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
             status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG)

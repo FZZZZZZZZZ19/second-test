@@ -11,6 +11,7 @@ bool track_element_step(TrackContext *s, const VisionFeatures *f, const AppParam
                         TrackDecision *out);
 bool vehicle_progress_rear_clear(const ElementAnchor *a, const AppParam *p, const SideFeedback *fb,
                                  bool stable, uint32_t now);
+bool vision_project_path(const AppParam *p,const float u[3],const float v[3],VisionOutput *o);
 bool vision_target_step(const VisionFeatures *f, const TrackDecision *d, const AppParam *p,
                         VisionOutput *out);
 bool vision_pipeline_step(TrackContext *track, const FrameView *frame, const AppParam *p,

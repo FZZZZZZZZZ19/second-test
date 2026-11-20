@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "app_runtime.h"
+#include "../vision/A_vision/vision_all.h"
 #include "vehicle_calibration.h"
 #include "zf_common_headfile.h"
 AppParam g_app_param;
-static VisionFeatures features;
-static TrackContext track;
 static PathControlState path;
 static uint32_t pipeline_session;
+static TrackState previous_track_state=TRACK_DEGRADED;
 bool app_boot_init(void) {
     board_clock_init();
     board_controls_init();
@@ -47,19 +47,21 @@ void app_main_poll(void) {
     app_exchange_read_control(&snapshot);
     if (pipeline_session != snapshot.session_id) {
         pipeline_session = snapshot.session_id;
-        track_element_reset(&track, pipeline_session, CAL_FULL_RACE != 0, 0);
+        team_vision_reset();
+        previous_track_state=TRACK_DEGRADED;
         path_control_reset(&path, pipeline_session);
     }
     FrameView frame;
     if (camera_frame_acquire(&frame)) {
         VisionOutput observation;
-        (void)vision_pipeline_step(&track, &frame, &g_app_param, &snapshot.feedback,
-                                   snapshot.mode == RUN_RUNNING, snapshot.session_id,
-                                   CAL_FULL_RACE != 0, &features, &observation);
+        (void)team_vision_step(&frame, &g_app_param, snapshot.session_id, &observation);
+        if (snapshot.mode != RUN_RUNNING) team_vision_reset();
+        observation.reset_derivative=observation.state!=previous_track_state;
+        previous_track_state=observation.state;
         MotionRequest request;
         (void)control_path_step(&path, &observation, &g_app_param, &request);
         app_exchange_publish_motion(&request);
-        debug_view_frame(&frame, &snapshot, &features);
+        debug_view_frame(&frame, &snapshot, NULL);
         camera_frame_release(frame.frame_id);
     }
     debug_view_poll(&snapshot);

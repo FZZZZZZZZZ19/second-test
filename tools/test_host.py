@@ -28,6 +28,7 @@ def main():
         print(label + ': ' + result.stdout.strip())
     # Link each domain alone: catches hidden calls across the algorithm boundary.
     for label, sources in [('vision', ['vision_line','vision_boundary','vision_target','vision_pipeline','track_element','vehicle_progress','app_math']),
+                           ('team_vision', ['vision_all','team_vision','vision_target','path_control','vehicle_param','app_math']),
                            ('control', ['path_control','speed_control','motion_plan','app_math','vehicle_param']),
                            ('menu_ui', ['maintenance','menu_model','menu_font','debug_view','camera_frame','vehicle_param','app_math']),
                            ('menu', ['maintenance','menu_model','vehicle_param','app_math']),

@@ -17,20 +17,32 @@ bool vision_target_step(const VisionFeatures *f,const TrackDecision *d,const App
     o->frame_id=f->frame_id; o->capture_ms=f->capture_ms;
     o->state=d->state; o->confidence=f->confidence;
     o->stop_requested=d->stop; o->reset_derivative=d->reset_d; o->speed_cap_mps=d->speed_cap;
-    float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
-    for(unsigned i=0;i<8;i++)if(!isfinite(h[i]))return false;
-    float det=h[0]*(h[4]-h[5]*h[7])-h[1]*(h[3]-h[5]*h[6])+h[2]*(h[3]*h[7]-h[4]*h[6]);
-    if(!isfinite(det)||fabsf(det)<1e-12f||!d->valid||d->path_index>=f->path_count)return false;
+    if (!d->valid || d->path_index>=f->path_count) return false;
     const PathCandidate *q=&f->paths[d->path_index];
     unsigned rows[APP_ROWS],n=0;
     for(unsigned i=0;i<APP_ROWS;i++)if(q->valid_rows&(1u<<i))rows[n++]=i;
     if(n<3)return false;
     unsigned chosen[]={rows[0],rows[n/2],rows[n-1]};
-    float x[3],z[3];
+    float u[3],v[3];
     for(unsigned i=0;i<3;i++) {
         unsigned row=chosen[i];
-        if(!isfinite(q->x[row])||q->x[row]<0||q->x[row]>=APP_WIDTH)return false;
-        if(!project(p,q->x[row],APP_HEIGHT-3u-row*APP_ROW_STEP,&x[i],&z[i]))return false;
+        u[i]=q->x[row];
+        v[i]=APP_HEIGHT-3u-row*APP_ROW_STEP;
+    }
+    return vision_project_path(p,u,v,o);
+}
+
+bool vision_project_path(const AppParam *p,const float u[3],const float v[3],VisionOutput *o) {
+    o->valid=false;
+    float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
+    for(unsigned i=0;i<8;i++)if(!isfinite(h[i]))return false;
+    float det=h[0]*(h[4]-h[5]*h[7])-h[1]*(h[3]-h[5]*h[6])+h[2]*(h[3]*h[7]-h[4]*h[6]);
+    if(!isfinite(det)||fabsf(det)<1e-12f)return false;
+    float x[3],z[3];
+    for (unsigned i=0;i<3;i++) {
+        if (!isfinite(u[i]) || !isfinite(v[i]) || u[i]<0 || u[i]>=APP_WIDTH ||
+            v[i]<0 || v[i]>=APP_HEIGHT || !project(p,u[i],v[i],&x[i],&z[i]))
+            return false;
     }
     if(!(z[0]<z[1]&&z[1]<z[2]))return false;
     float a=hypotf(z[1]-z[0],x[1]-x[0]);

@@ -2,49 +2,38 @@
 //// 注意：reality_x1,reality_x2,reality_x3,reality_y1,reality_y2,reality_y3,state,flag是要暴露出来的量
 #include "vision_all.h"
 
-// #define SCUT_IMAGE_H 120
-// #define SCUT_IMAGE_W 188
-// #define MAX_STEP 2000
-// #define LINE_LENGTH (SCUT_IMAGE_H+SCUT_IMAGE_W + 50)
+#include <string.h>
 
-unsigned char origin_image[SCUT_IMAGE_H][SCUT_IMAGE_W];
-unsigned char g_binary[SCUT_IMAGE_H][SCUT_IMAGE_W];
-int g_threholds;
+#define SCUT_IMAGE_H ((int)APP_HEIGHT)
+#define SCUT_IMAGE_W ((int)APP_WIDTH)
+enum { MAX_STEP = 512, LINE_LENGTH = MAX_STEP };
+static const FrameView *source_frame;
+static uint8_t g_binary[SCUT_IMAGE_H][(SCUT_IMAGE_W+7)/8];
+static const int experience_value=10, ww=2, bw=2, max_length=90, offset_w=5, target_dist=65;
 /**
  * @brief state: 0 正常情况 1 直角弯 2 识别到1->2的跳变 3 十字路口 4 环岛
  * @brief flag: 0 正常情况 1 识别到直角弯 2 识别1到Y 3 进入Y 4 识别到十字路口 5 识别到环岛 6 开始进入环岛 
  * @brief flag: 7 进入1 8 进入2 9 识别到退出 10 开始推出 11 推出1  
 */
-int state,flag;
+static int state,flag;
 
-void reset_state_flag(void)
+static void reset_state_flag(void)
 {state = 0;flag = 0;}
 
-int lx,ly,rx,ry;
+static int lx,ly,rx,ry;
 
-void start_point_reset(void)
-{
-    int lx = 0;
-    int ly = SCUT_IMAGE_H - 1;
-    int rx = SCUT_IMAGE_W - 1;
-    int ry = SCUT_IMAGE_H - 1;
-}
+static uint8_t l_points[MAX_STEP][2], r_points[MAX_STEP][2];
+static int l_statics, r_statics;
+static int min_statics;
+static int16_t target_l_line[LINE_LENGTH][2];
+static int16_t target_r_line[LINE_LENGTH][2];
+static int16_t target_mid_line[LINE_LENGTH][2];
+static int target_statics,target_l_statics,target_r_statics;
+static int white_period[SCUT_IMAGE_H] = {0};
+static int white_count[SCUT_IMAGE_H] = {0};
+static int white_change = 0;
 
-int l_points[MAX_STEP][2];
-int r_points[MAX_STEP][2];
-int l_points_dir[MAX_STEP]; //这两个发现没用到，有空可以删了
-int r_points_dir[MAX_STEP];
-int l_statics, r_statics;
-int min_statics;
-int target_l_line[MAX_STEP][2];
-int target_r_line[MAX_STEP][2];
-int target_mid_line[MAX_STEP][2];
-int target_statics,target_l_statics,target_r_statics;
-int white_period[SCUT_IMAGE_H] = {0};
-int white_count[SCUT_IMAGE_H] = {0};
-int white_change = 0;
-
-void reset_white(void)
+static void reset_white(void)
 {
     for(int i = 0;i<SCUT_IMAGE_H;i++)
     {
@@ -55,27 +44,18 @@ void reset_white(void)
 }
 
 
-void getmin_statics(void)
+static void getmin_statics(void)
 {
     min_statics = l_statics >= r_statics ? r_statics : l_statics; 
 }
 
-void reset_points(void)
+static void reset_points(void)
 {
-    int i;
-    for (i = 0; i < MAX_STEP; i++) {
-        l_points[i][0] = -1;
-        l_points[i][1] = -1;
-        r_points[i][0] = -1;
-        r_points[i][1] = -1;
-        l_points_dir[i] = -1;
-        r_points_dir[i] = -1;
-    }
     l_statics = 0;
     r_statics = 0;
 }
 
-void reset_target_line(void)
+static void reset_target_line(void)
 {
     for(int i = 0;i<LINE_LENGTH;i++)
     {
@@ -91,7 +71,7 @@ void reset_target_line(void)
     target_r_statics = 0;
 }
 
-void reset_target_l(void)
+static void reset_target_l(void)
 {
     for(int i = 0;i<LINE_LENGTH;i++)
     {
@@ -101,7 +81,7 @@ void reset_target_l(void)
     target_l_statics = 0;
 }
 
-void reset_target_r(void)
+static void reset_target_r(void)
 {
     for(int i = 0;i<LINE_LENGTH;i++)
     {
@@ -111,7 +91,7 @@ void reset_target_r(void)
     target_r_statics = 0;
 }
 
-void put_point_info(int x, int y, int dir, int lr)
+static void put_point_info(int x, int y, int lr)
 {
     if (lr == 0) {
         if (l_statics >= MAX_STEP) {
@@ -119,7 +99,6 @@ void put_point_info(int x, int y, int dir, int lr)
         }
         l_points[l_statics][0] = x;
         l_points[l_statics][1] = y;
-        l_points_dir[l_statics] = dir;
         l_statics++;
     } else {
         if (r_statics >= MAX_STEP) {
@@ -127,35 +106,17 @@ void put_point_info(int x, int y, int dir, int lr)
         }
         r_points[r_statics][0] = x;
         r_points[r_statics][1] = y;
-        r_points_dir[r_statics] = dir;
         r_statics++;
     }
-}
-
-/**
- * @brief 这个只在初始化摄像头的时候运行一次，其余时间不运行
-*/
-void camera_init(void)
-{
-    // 具体还没想好怎么写
-    int i ;
-    for (i = 0; i < SCUT_IMAGE_H; i++) {
-        int x;
-        for (x = 0; x < SCUT_IMAGE_W; x++) {
-            g_binary[i][x] = 0;
-            origin_image[i][x] = 0;
-        }
-    }
-    reset_state_flag();
 }
 
 /**
  * @brief 大津法（Otsu）阈值。
  * @param[in] value 经验偏移量；正常传 0。
  */
-int GetThre(int value)
+static int GetThre(int value)
 {
-    int amount[256] = {0};          /* 计数可达 22560，不能用 unsigned char */
+    uint16_t amount[256] = {0};          /* 计数可达 22560，不能用 unsigned char */
     int area = SCUT_IMAGE_W * SCUT_IMAGE_H;
     int area_bg = 0;
     int thre = 128;                 /* 全图同灰度时的兜底阈值 */
@@ -166,7 +127,7 @@ int GetThre(int value)
 
     for (y = 0; y < SCUT_IMAGE_H; y++) {
         for (x = 0; x < SCUT_IMAGE_W; x++) {
-            amount[origin_image[y][x]]++;
+            amount[source_frame->pixels[y*source_frame->stride+x]]++;
         }
     }
 
@@ -197,6 +158,7 @@ int GetThre(int value)
             thre = x;
         }
     }
+    if (sigma_max < 0) return -1;
     thre = thre + value;
     if (thre < 0)   { thre = 0; }
     if (thre > 255) { thre = 255; }
@@ -207,41 +169,14 @@ int GetThre(int value)
  * @brief 常规的二值化函数。
  * @param[in] thre 阈值
  */
-void mybinary(int thre)
+static void mybinary(int threshold)
 {
-    int x, y;
-    for (y = 0; y < SCUT_IMAGE_H; y++) {
-        for (x = 0; x < SCUT_IMAGE_W; x++) {
-            g_binary[y][x] = (origin_image[y][x] > thre ? 255 : 0);
-        }
-    }
-}
-
-/** 
- * @brief 给屏幕一个黑色的边框，在一定情况下很好用
- * @param[in] pad 边框的长度
-*/
-int mypadding(int pad)
-{
-    if(pad >= 10)
-    {
-        return 0;
-    }
-    else{
-        for(int i = 0;i<pad;i++)
-        {
-            for(int x = 0;x<SCUT_IMAGE_W;x++)
-            {
-                g_binary[0+i][x] = 0;
-                g_binary[SCUT_IMAGE_H-1-i][x] = 0;
-            }
-            for(int y = 0;y < SCUT_IMAGE_H;y++)
-            {
-                g_binary[y][0+i] = 0;
-                g_binary[y][SCUT_IMAGE_W-1-i] = 0;
-            }
-        }
-        return 1;
+    memset(g_binary,0,sizeof g_binary);
+    for (int y=2; y<SCUT_IMAGE_H-2; y++) {
+        const uint8_t *row=source_frame->pixels+y*source_frame->stride;
+        for (int x=2; x<SCUT_IMAGE_W-2; x++)
+            if (row[x]>threshold)
+                g_binary[y][x/8] |= (uint8_t)(1u<<(x%8));
     }
 }
 
@@ -249,18 +184,18 @@ int mypadding(int pad)
  * @brief 防止访问出界的一种方式。
  * @param[in] x,y 要检查的点的坐标
  */
-int is_white(int x, int y)
+static int is_white(int x, int y)
 {
     if (x < 0 || x >= SCUT_IMAGE_W || y < 0 || y >= SCUT_IMAGE_H) {
         return 0;
     }
-    return g_binary[y][x] != 0;
+    return (g_binary[y][x/8] >> (x%8)) & 1u;
 }
 
 /**
  * @brief 绝对值函数
 */
-int myabs(int v)
+static int myabs(int v)
 {
     return (v < 0) ? -v : v;
 }
@@ -268,7 +203,7 @@ int myabs(int v)
 /**
  * @brief 返回小的值
 */
-int mymin(int a,int b)
+static int mymin(int a,int b)
 {
     return a>=b ? b : a;
 }
@@ -284,7 +219,7 @@ int mymin(int a,int b)
  * @param[in] start_y 要检查的行
  * @return 1 = 找到；0 = 本行没有合适的白段
  */
-int find_y_start(int start_y)
+static int find_y_start(int start_y)
 {
     int center = SCUT_IMAGE_W / 2;
     int x = 0;
@@ -346,7 +281,7 @@ int find_y_start(int start_y)
  * @param[in] start_y 开始的行
  * @param[in] max_line 最多检查的行数
  */
-int find_start(int start_y, int max_line)
+static int find_start(int start_y, int max_line)
 {
     int i;
     for (i = 0; i < max_line; i++) {
@@ -382,7 +317,7 @@ static const int DIR8[8][2] = {
  * @param[in]     lr   0=左边线，1=右边线
  * @return 1=走了一步；0=找不到下一个白点
  */
-int one_step(int *x, int *y, int *dir, int *bx, int *by, int lr)
+static int one_step(int *x, int *y, int *dir, int *bx, int *by, int lr)
 {
     int i, di = -1;
     int k, nd, bd, nx, ny;
@@ -431,7 +366,7 @@ int one_step(int *x, int *y, int *dir, int *bx, int *by, int lr)
  *
  * @return 1 = 两边都正常结束（到边界/闭合/相遇）；0 = 起点无效或中途卡住
  */
-int forward(void)
+static int forward(void)
 {
     int lxs, lys, lxb, lyb, ldir;
     int rxs, rys, rxb, ryb, rdir;
@@ -467,8 +402,8 @@ int forward(void)
     ldir = 6;                       /* 初始朝北（DIR8[6]） */
     rdir = 6;
 
-    put_point_info(lxs, lys, ldir, 0);
-    put_point_info(rxs, rys, rdir, 1);
+    put_point_info(lxs, lys, 0);
+    put_point_info(rxs, rys, 1);
 
     while (step < MAX_STEP - 1 && (!ldone || !rdone)) {
         if (!ldone) {
@@ -476,7 +411,7 @@ int forward(void)
                 ldone = 1;
                 lfail = 1;
             } else {
-                put_point_info(lxs, lys, ldir, 0);
+                put_point_info(lxs, lys, 0);
                 if (lys <= 0 || lxs <= 0 || lxs >= SCUT_IMAGE_W - 1) {
                     ldone = 1;          /* 到达图像边界，正常结束 */
                 } else if (lxs == lstart_x && lys == lstart_y) {
@@ -490,7 +425,7 @@ int forward(void)
                 rdone = 1;
                 rfail = 1;
             } else {
-                put_point_info(rxs, rys, rdir, 1);
+                put_point_info(rxs, rys, 1);
                 if (rys <= 0 || rxs <= 0 || rxs >= SCUT_IMAGE_W - 1) {
                     rdone = 1;
                 } else if (rxs == rstart_x && rys == rstart_y) {
@@ -525,7 +460,7 @@ int forward(void)
  * @param[in] white_width 不被忽略的白色的最小长度
  * @param[in] black_width 被认为是连续的黑色的最大长度
 */
-void count_white(int white_width,int black_width)
+static void count_white(int white_width,int black_width)
 {
     reset_white();
     int l = -1,r = -1;
@@ -538,7 +473,7 @@ void count_white(int white_width,int black_width)
         l = -1,r = -1;
         for(int x = 0;x<SCUT_IMAGE_W;x++)
         {
-            if(g_binary[y][x] == 255 && state == 0)
+            if(is_white(x,y) && state == 0)
             {
                 if(r != -1 && (x-r) <= black_width)
                 {
@@ -560,7 +495,7 @@ void count_white(int white_width,int black_width)
                     l = x;state = 1;
                 }
             }
-            if(g_binary[y][x] == 0 && state == 1)
+            if(!is_white(x,y) && state == 1)
             {
                 r = x;state = 0;
             }
@@ -582,7 +517,7 @@ void count_white(int white_width,int black_width)
  * @param[in] up 这个是视觉上的上面，对应出来的y小的那个
  * @param[in] theta 最多给1，2
 */
-void fill_crossing(int Down,int Up,int theta,int width)
+static void fill_crossing(int Down,int Up,int theta,int width)
 {
     int down = Down + theta;
     int up = Up - theta;
@@ -750,7 +685,7 @@ void fill_crossing(int Down,int Up,int theta,int width)
  * @brief 用于补Y型的分岔口的补线代码，用的方式是直接取一边的线
  * @param[in] lr 向左还是向右 
 */
-void fill_Y(int lr)
+static void fill_Y(int lr)
 {
     if(lr == 0)
     {
@@ -778,7 +713,7 @@ void fill_Y(int lr)
  * @param[in] cx,cy 这个是环岛上面那个分叉点的位置
  * @param[in] lr 左环岛还是右环岛
 */
-void fill_roundaboutI(int cx,int cy, int lr)
+static void fill_roundaboutI(int cx,int cy, int lr)
 {
     if(lr == 0)
     {
@@ -818,7 +753,7 @@ void fill_roundaboutI(int cx,int cy, int lr)
  * @brief 这个是环岛的判断的第二步
  * @param[in] lr 依旧是左右环岛
 */
-void fill_roundaboutII(int lr)
+static void fill_roundaboutII(int lr)
 {
     fill_Y(lr);
 }
@@ -826,7 +761,7 @@ void fill_roundaboutII(int lr)
 /**
  * @brief 这个是环岛判断的第三步(刚开始出环岛的情况)
 */
-void fill_roundaboutIII(int cx,int cy,int lr)
+static void fill_roundaboutIII(int cx,int cy,int lr)
 {
     if(lr == 0)
     {
@@ -864,12 +799,12 @@ void fill_roundaboutIII(int cx,int cy,int lr)
 /**
  * @brief 这个是环岛的最后一步(但是依旧是出环岛的情况)
 */
-void fill_roundaboutIV(int lr)
+static void fill_roundaboutIV(int lr)
 {
     fill_Y(!lr);
 }
 
-void fill_none(void)
+static void fill_none(void)
 {
     reset_target_line();
     for(int i = 0;i<l_statics;i++)
@@ -889,7 +824,7 @@ void fill_none(void)
 /**
  * @brief 拟合中线的
 */
-int match_target_line(int theta)
+static int match_target_line(int theta)
 {
     if(target_l_statics != 0 && target_r_statics != 0)
     {
@@ -908,8 +843,8 @@ int match_target_line(int theta)
             target_mid_line[i][0] = target_r_line[i][0] - theta; // 这里需要进行防出界的东西
             if(target_mid_line[i][0] < 0)
             {target_mid_line[i][0] = 0;}
-            else if(target_mid_line[i][0] > 188)
-            {target_mid_line[i][0] = 188;}
+            else if(target_mid_line[i][0] >= SCUT_IMAGE_W)
+            {target_mid_line[i][0] = SCUT_IMAGE_W-1;}
             target_mid_line[i][1] = target_r_line[i][1];
         }
         target_statics = target_r_statics;
@@ -922,8 +857,8 @@ int match_target_line(int theta)
             target_mid_line[i][0] = target_l_line[i][0] + theta; // 这里需要进行防出界的东西
             if(target_mid_line[i][0] < 0)
             {target_mid_line[i][0] = 0;}
-            else if(target_mid_line[i][0] > 188)
-            {target_mid_line[i][0] = 188;}
+            else if(target_mid_line[i][0] >= SCUT_IMAGE_W)
+            {target_mid_line[i][0] = SCUT_IMAGE_W-1;}
             target_mid_line[i][1] = target_l_line[i][1];
         }
         target_statics = target_l_statics;
@@ -940,9 +875,9 @@ int match_target_line(int theta)
  * @param[in] threta 防止除数为零的手段，越大误差越大
 */
 
-int X1 = -1,Y1 = -1,X2 = -1,Y2 = -1;
+static int X1 = -1,Y1 = -1,X2 = -1,Y2 = -1;
 
-void pred_points(int distance)
+static void pred_points(int distance)
 {
     if (target_statics <= 0) 
     {
@@ -983,7 +918,7 @@ void pred_points(int distance)
 /**
  * @brief 用来约束白块的数量
 */
-void limit_white(void)
+static void limit_white(void)
 {
     for(int i = 0;i<SCUT_IMAGE_H;i++)
     {
@@ -995,7 +930,7 @@ void limit_white(void)
 /**
  * @brief 获得一个中位数
 */
-int get_midnum(int a,int b,int c,int d,int e)
+static int get_midnum(int a,int b,int c,int d,int e)
 {
     int t;
 
@@ -1021,9 +956,9 @@ int get_midnum(int a,int b,int c,int d,int e)
  * @brief 这个算法好用奥，用中位数来代替这个的连续的白块的值
 */
 
-int white_deal[SCUT_IMAGE_H] = {-1};
+static int white_deal[SCUT_IMAGE_H] = {-1};
 
-void putin(void)
+static void putin(void)
 {
     for(int i = 0;i<SCUT_IMAGE_H;i++)
     {
@@ -1031,7 +966,7 @@ void putin(void)
     }
 }
 
-void deal_white(void)
+static void deal_white(void)
 {
     putin();
     for(int i = 2;i<SCUT_IMAGE_H-2;i++)
@@ -1040,11 +975,11 @@ void deal_white(void)
     }
 }
 
-int minus_to_y[30] = {-1};
-int minus_white[30] = {-1};
-int minus_statics = 0;
+static int minus_to_y[30] = {-1};
+static int minus_white[30] = {-1};
+static int minus_statics = 0;
 
-void reset_minuswhite(void)
+static void reset_minuswhite(void)
 {
     for(int i = 0;i<30;i++)
     {
@@ -1056,7 +991,7 @@ void reset_minuswhite(void)
 /**
  * @brief 重进下进行整理
 */
-void collate_white(int collate_length)
+static void collate_white(int collate_length)
 {
     reset_minuswhite();
     minus_white[0] = 0;
@@ -1076,27 +1011,10 @@ void collate_white(int collate_length)
     minus_statics ++;
 }
 
-/**
- * @brief 用于查找一个数组中是否有另一个数组
-*/
-int containsSubarray(const int *text, int n, const int *pat, int m) {
-    if (m == 0) return 1;      /* 空数组视为包含 */
-    if (m > n)  return 0;
+static int all_white = SCUT_IMAGE_W - 30;
+static int half_white = SCUT_IMAGE_W/2 - 15;
 
-    for (int i = 0; i + m <= n; i++) {
-        int j = 0;
-        while (j < m && text[i + j] == pat[j])
-            j++;
-        if (j == m)
-            return 1;          /* 找到 */
-    }
-    return 0;
-}
-
-int all_white = SCUT_IMAGE_W - 30;
-int half_white = SCUT_IMAGE_W/2 - 15;
-
-int have_all_white(void)
+static int have_all_white(void)
 {
     int count = 0;
     for(int i = 0;i<SCUT_IMAGE_H;i++)
@@ -1110,7 +1028,7 @@ int have_all_white(void)
         return 0;
 }
 
-int have_half_white(void)
+static int have_half_white(void)
 {
     int count = 0;
     for(int i = 0;i<SCUT_IMAGE_H;i++)
@@ -1130,7 +1048,7 @@ int have_half_white(void)
  * @brief flag: 0 正常情况 1 识别到直角弯 2 识别1到2 3 进入Y 4 识别到十字路口 5 识别到环岛 6 开始进入环岛 
  * @brief flag: 7 进入1 8 进入2 9 识别到退出 10 开始推出 11 推出1  
 */
-void analyze(void)
+static void analyze(void)
 {
     if(state == 4)
     {
@@ -1259,27 +1177,25 @@ void analyze(void)
 */
 
 
-int LR = 0;
+static int LR = 0;
 
-int bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
-int top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
-int cx     = -1;                 /* Y/环岛分叉点 x */
-int cy     = -1;                 /* Y/环岛分叉点 y */
-int elem_lr = 0;                 /* 0=左, 1=右 */
-int elem_lr_manual = 0;          /* Y型人工给定：0=左Y, 1=右Y（只改这个） */
+static int bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
+static int top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
+static int cx     = -1;                 /* Y/环岛分叉点 x */
+static int cy     = -1;                 /* Y/环岛分叉点 y */
+static int elem_lr = 0;                 /* 0=左, 1=右 */
+static int elem_lr_manual = 0;          /* Y型人工给定：0=左Y, 1=右Y（只改这个） */
 
-void reset_info(void)
+static void reset_info(void)
 {
     bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
     top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
     cx     = -1;                 /* Y/环岛分叉点 x */
     cy     = -1;                 /* Y/环岛分叉点 y */
-    elem_lr = 0;                 /* 0=左, 1=右 */
-    elem_lr_manual = 0;          /* Y型人工给定：0=左Y, 1=右Y（只改这个） */
 }
 
 
-int findClosestIndex(const int* arr, int n, int target) {
+static int findClosestIndex(const int* arr, int n, int target) {
     if (n <= 0) return -1;
 
     int bestIndex = 0;
@@ -1297,7 +1213,7 @@ int findClosestIndex(const int* arr, int n, int target) {
     return bestIndex;
 }
 
-int errors = 0;
+static int errors = 0;
 static void find_fork(void)
 {
     int index = -1;
@@ -1315,18 +1231,20 @@ static void find_fork(void)
         else{
             // 补救措施
             errors = 1;
+            return;
         }
     }
     int real_y = minus_to_y[index];
+    if (real_y < 0 || real_y >= SCUT_IMAGE_H) { errors=1; return; }
     int l[10] = {-1};
     int r[10] = {-1};
     int nl = 0,nr = 0;
     for(int i = 1;i<SCUT_IMAGE_W;i++)
     {
-        if(g_binary[real_y][i] == 255 && g_binary[real_y][i-1] == 0)
-        {l[nl] = i;nl++;}
-        if(g_binary[real_y][i] == 0 && g_binary[real_y][i-1] == 255)
-        {r[nr] = i;nr ++;}
+        if(is_white(i,real_y) && !is_white(i-1,real_y))
+        {if (nl == 10) { errors=1; return; } l[nl] = i;nl++;}
+        if(!is_white(i,real_y) && is_white(i-1,real_y))
+        {if (nr == 10) { errors=1; return; } r[nr] = i;nr ++;}
     }
     if(nl == 0 && nr == 0)
     {
@@ -1340,7 +1258,7 @@ static void find_fork(void)
         {
             mid[nmid] = (r[i]+l[i+1])/2;nmid++;
         }
-        int k = findClosestIndex(mid, nmid, SCUT_IMAGE_H/2);
+        int k = findClosestIndex(mid, nmid, SCUT_IMAGE_W/2);
         cx = mid[k];
         cy = real_y;
     }
@@ -1381,12 +1299,12 @@ static void geo_cross_edges(void)
     }
 }
 
-int pstate = -1;
-int pflag = -1;
-int manul_lock = 0;
-int auto_lock = 0;
+static int pstate = -1;
+static int pflag = -1;
+static int manul_lock = 0;
+static int auto_lock = 0;
 
-void update_info(void)
+static void update_info(void)
 {
     if(pstate != state)
     {
@@ -1400,6 +1318,7 @@ void update_info(void)
     if(state == 3)
     {
         geo_cross_edges();
+        if (bottom < 0 || top < 0) { errors=1; return; }
         fill_crossing(bottom, top, 2, 5);
         pstate = 3;
         pflag = 4;
@@ -1433,6 +1352,7 @@ void update_info(void)
                 auto_lock = 1;
             }
             find_fork();
+            if (errors || cx < 0 || cy < 0) { errors=1; return; }
             fill_roundaboutI(cx,cy,elem_lr);
             pstate = 4;
             pflag = 5;
@@ -1446,6 +1366,7 @@ void update_info(void)
         if(flag == 9)
         {
             find_fork();
+            if (errors || cx < 0 || cy < 0) { errors=1; return; }
             fill_roundaboutIII(cx, cy, elem_lr);
             pstate = 4;
             pflag = 9;
@@ -1461,76 +1382,40 @@ void update_info(void)
     }
 }
 
-// w = h6·u + h7·v + 1
-// x = (h0·u + h1·v + h2) / w      ← 车体右方向
-// z = (h3·u + h4·v + h5) / w      ← 车头前方向
-#define CAL_GROUND_H0 0.0045366634f
-#define CAL_GROUND_H1 -0.000223055189f
-#define CAL_GROUND_H2 -0.439942106f
-#define CAL_GROUND_H3 -0.000210106974f
-#define CAL_GROUND_H4 -0.0030013693f
-#define CAL_GROUND_H5 0.561728764f
-#define CAL_GROUND_H6 0.000546354536f
-#define CAL_GROUND_H7 0.0137539169f
-
-float reality_x1,reality_x2,reality_x3,reality_y1,reality_y2,reality_y3;
-
-void pixel2reality(void)
+void team_vision_reset(void)
 {
-    float w1 = CAL_GROUND_H6*X1 + CAL_GROUND_H7*Y1 + 1;
-    float w2 = CAL_GROUND_H6*X2 + CAL_GROUND_H7*Y2 + 1;
-    float w3 = CAL_GROUND_H6*(lx+rx)/2 + CAL_GROUND_H7*(ly+ry)/2 + 1;
-    reality_x1 = (CAL_GROUND_H0 * X1 + CAL_GROUND_H1 * Y1 + CAL_GROUND_H2) / w1;
-    reality_x2 = (CAL_GROUND_H0 * X2 + CAL_GROUND_H1 * Y2 + CAL_GROUND_H2) / w2;
-    reality_x3 = (CAL_GROUND_H0 * (lx+rx)/2 + CAL_GROUND_H1 * (ly+ry)/2 + CAL_GROUND_H2) / w3;
-    reality_y1 = (CAL_GROUND_H3 * X1 + CAL_GROUND_H4 * Y1 + CAL_GROUND_H5) / w1;
-    reality_y2 = (CAL_GROUND_H3 * X2 + CAL_GROUND_H4 * Y2 + CAL_GROUND_H5) / w2;
-    reality_y3 = (CAL_GROUND_H3 * (lx+rx)/2 + CAL_GROUND_H4 * (ly+ry)/2 + CAL_GROUND_H5) / w3;
+    reset_state_flag();
+    pstate = pflag = -1;
+    manul_lock = auto_lock = 0;
+    elem_lr = elem_lr_manual = 0;
 }
 
-void reality_reset(void)
+bool team_vision_points(const FrameView *frame, TeamPixel points[3], int *element, int *stage)
 {
-    reality_x1 = 0.0f; 
-    reality_x2 = 0.0f;
-    reality_x3 = 0.0f;
-    reality_y1 = 0.0f;
-    reality_y2 = 0.0f;
-    reality_y3 = 0.0f;
-}
-
-// int experience_value;//10
-// int ww , bw;//2,2
-// int max_length;//90
-// int offset_w;//5
-// int target_dist;//65
-
-void camera_process(void)
-{
-    int  thre;
-    reset_info();
-    reality_reset();
-    /* 1) 直方图 + 大津法阈值 */
-
-
-    thre = GetThre(experience_value);
-    g_threholds = thre;
-    /* 2) 二值化。必须在找起点/巡线之前完成，is_white 读的就是 g_binary。 */
-    mybinary(thre);
-    mypadding(2);
+    if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
+        frame->height != APP_HEIGHT || frame->stride < frame->width)
+        return false;
+    source_frame=frame;
+    int threshold=GetThre(experience_value);
+    if (threshold < 0) return false;
+    mybinary(threshold);
     count_white(ww,bw);
     limit_white();
     deal_white();
     collate_white(max_length);
-    if (find_start(SCUT_IMAGE_H - 3, 10)) {
-        forward();
-        getmin_statics();          /* 这一句现在缺失，必须补 */
-    } else {
-        reset_points();
-    }
+    if (!find_start(SCUT_IMAGE_H-3,10) || !forward()) return false;
+    getmin_statics();
+    reset_info();
+    errors=0;
     analyze();
+    reset_target_line();
     update_info();
-    match_target_line(offset_w);
+    if (errors || !match_target_line(offset_w) || target_statics < 3) return false;
     pred_points(target_dist);
-    pixel2reality();
+    points[0]=(TeamPixel){(lx+rx)/2,(ly+ry)/2};
+    points[1]=(TeamPixel){X1,Y1};
+    points[2]=(TeamPixel){X2,Y2};
+    *element=state;
+    *stage=flag;
+    return true;
 }
-
