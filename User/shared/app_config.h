@@ -1,7 +1,11 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.6.1"
+#define APP_VERSION "1.6.2"
 #define APP_MAX_SPEED_MPS 5.0f
+#define APP_TUNE_SPEED_MPS 0.15f
+#define APP_TUNE_RUN_MS 2000u
+#define APP_TUNE_WAIT_MS 2000u
+#define APP_TUNE_FRAME_AGE_MS 150u
 #define APP_CONTROL_PERIOD_MS 5u
 #define APP_WIDTH 188u
 #define APP_HEIGHT 120u

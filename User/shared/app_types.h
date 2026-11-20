@@ -13,7 +13,9 @@ typedef enum {
     RUN_STOPPING,
     RUN_FAULT,
     RUN_DUTY_DEBUG,
-    RUN_SPEED_DEBUG
+    RUN_SPEED_DEBUG,
+    RUN_TUNE_WAIT,
+    RUN_TUNE_RUNNING
 } RunMode;
 typedef enum {
     TRACK_NORMAL,
@@ -39,9 +41,10 @@ typedef enum {
     STOP_NONFINITE,
     STOP_TIMING,
     STOP_TRACK,
-    STOP_CONFIG
+    STOP_CONFIG,
+    STOP_TUNE_DONE
 } StopReason;
-typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8, REQ_HALT = 16, REQ_RUN30 = 32, REQ_SPEED_DEBUG = 64, REQ_RUN5 = 128 } AppRequest;
+typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8, REQ_HALT = 16, REQ_RUN30 = 32, REQ_SPEED_DEBUG = 64, REQ_RUN5 = 128, REQ_TRACK_TUNE = 256 } AppRequest;
 typedef struct {
     uint16_t left, right;
 } WhiteRun;

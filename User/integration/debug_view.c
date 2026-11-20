@@ -11,7 +11,8 @@
 static MenuModel menu;
 static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms;
-static bool vofa_enabled, start_pending;
+static bool vofa_enabled, start_pending, tune_active;
+static uint32_t tune_request_session;
 static char message[27] = "U/D OK; K1 back";
 static char row_cache[10][21];
 static uint8_t row_style[10];
@@ -30,7 +31,7 @@ static void styled_line(unsigned row, const char *text, unsigned scale, bool sel
 static void line(unsigned row, const char *text) { styled_line(row,text,1,false); }
 static void note(const char *text) { snprintf(message, sizeof message, "%.26s", text); }
 static void stop_all(const ControlSnapshot *s) {
-    start_pending = false; vofa_enabled = false;
+    start_pending = false; vofa_enabled = false; tune_active = false;
     app_exchange_request(s->mode == RUN_FAULT ? REQ_RESET : REQ_HALT);
     (void)camera_frame_set_running(false);
     note("motor+camera stopped");
@@ -70,6 +71,15 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         app_control_camera_ready(true);
         start_pending = true; start_ms = board_time_ms();
         note("checking start..."); break;
+    case MENU_TRACK_TUNE:
+        if (s->mode != RUN_STATIC_DEBUG) { note("stop first"); break; }
+        if (!camera_frame_set_running(true)) { note("camera failed"); break; }
+        app_control_camera_ready(true);
+        app_exchange_request(REQ_TRACK_TUNE);
+        tune_active = true;
+        tune_request_session = s->session_id;
+        note("wait for track");
+        break;
     case MENU_RUN30:
     case MENU_RUN5:
     case MENU_VOFA:
@@ -168,6 +178,18 @@ void debug_view_poll(const ControlSnapshot *s) {
     MenuAction a = menu_key(&menu, board_key_code(), now);
     if (before == MENU_MAIN && menu.page == MENU_PARA && s->mode != RUN_STATIC_DEBUG) {
         menu.page = MENU_MAIN; menu.selected = 1; note("stop before para");
+    }
+    if (tune_active && s->session_id != tune_request_session) {
+        if (s->mode == RUN_TUNE_RUNNING) note("track tune 2s");
+        else if (s->mode != RUN_TUNE_WAIT) {
+            tune_active = false;
+            (void)camera_frame_set_running(false);
+            app_control_camera_ready(false);
+            note(s->reason == STOP_TUNE_DONE ? "tune done" :
+                 s->reason == STOP_ENCODER ? "check encoder" :
+                 s->reason == STOP_VISION ? "track lost" :
+                 s->reason == STOP_CONFIG ? "check setup" : "tune stopped");
+        }
     }
     action(a, s);
     if (start_pending) {

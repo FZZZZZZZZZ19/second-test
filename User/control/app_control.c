@@ -9,7 +9,7 @@ static ControlSnapshot status;
 static MotionRequest good;
 static SpeedPiState pi[2];
 static MotionPlanState plan;
-static uint32_t previous_us;
+static uint32_t previous_us, tune_since;
 static volatile bool initialized, camera_ok;
 void app_control_camera_ready(bool ok) {
     BoardIrqToken t = board_irq_save();
@@ -51,7 +51,8 @@ void app_control_tick_isr(void) {
                        !CAL_FULL_RACE;
     if (elapsed == 0 || elapsed > 20000) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
-            status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG)
+            status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG ||
+            status.mode == RUN_TUNE_RUNNING)
             fault(STOP_TIMING);
         dt = .005f;
     }
@@ -60,7 +61,7 @@ void app_control_tick_isr(void) {
     app_exchange_read_motion(&incoming);
     if (incoming.session_id == status.session_id && incoming.valid && incoming.confidence >= 40) {
         if (!isfinite(incoming.omega_raw) || !isfinite(incoming.speed_cap_mps)) {
-            if (status.mode == RUN_RUNNING)
+            if (status.mode == RUN_RUNNING || status.mode == RUN_TUNE_RUNNING)
                 fault(STOP_NONFINITE);
         } else if ((uint32_t)(now - incoming.capture_ms) <= (uint32_t)g_app_param.hard_timeout_ms)
             good = incoming;
@@ -78,6 +79,18 @@ void app_control_tick_isr(void) {
         if (status.mode != RUN_FAULT) status.mode = RUN_STATIC_DEBUG;
         status.reason = STOP_LOCAL;
         status.session_id++;
+        requests = 0;
+    } else if (status.mode == RUN_STATIC_DEBUG && (requests & REQ_TRACK_TUNE)) {
+        status.session_id++;
+        memset(&good, 0, sizeof(good));
+        if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
+        else if (!status.feedback.valid || !(fabsf(status.feedback.speed_mps[0]) < .03f) ||
+                 !(fabsf(status.feedback.speed_mps[1]) < .03f)) fault(STOP_ENCODER);
+        else {
+            status.mode = RUN_TUNE_WAIT;
+            status.reason = STOP_NONE;
+            tune_since = now;
+        }
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_RUN5 | REQ_SPEED_DEBUG))) {
         bool speed_test = (requests & REQ_SPEED_DEBUG) != 0;
@@ -101,6 +114,30 @@ void app_control_tick_isr(void) {
         if (status.mode == RUN_READY || status.mode == RUN_STATIC_DEBUG)
             memset(&good, 0, sizeof(good));
     }
+    if (status.mode == RUN_TUNE_WAIT || status.mode == RUN_TUNE_RUNNING) {
+        bool tune_fresh = fresh && good.session_id == status.session_id &&
+                          status.vision_age_ms <= APP_TUNE_FRAME_AGE_MS;
+        bool current = incoming.session_id == status.session_id;
+        bool usable = current && incoming.valid && incoming.confidence >= 40;
+        if ((requests & REQ_STOP) || (current && incoming.stop_requested) ||
+            (status.mode == RUN_TUNE_RUNNING && now - tune_since >= APP_TUNE_RUN_MS)) {
+            status.mode = RUN_STATIC_DEBUG;
+            status.reason = (requests & REQ_STOP) ? STOP_LOCAL :
+                            (current && incoming.stop_requested) ? STOP_TRACK : STOP_TUNE_DONE;
+            status.session_id++;
+            memset(&good, 0, sizeof(good));
+        } else if (!camera_ok) fault(STOP_VISION);
+        else if (!status.feedback.valid) fault(STOP_ENCODER);
+        else if (status.mode == RUN_TUNE_WAIT) {
+            if (now - tune_since >= APP_TUNE_WAIT_MS) fault(STOP_VISION);
+            else if (tune_fresh && usable && good.speed_cap_mps > 0 &&
+                     fabsf(status.feedback.speed_mps[0]) < .03f &&
+                     fabsf(status.feedback.speed_mps[1]) < .03f) {
+                status.mode = RUN_TUNE_RUNNING;
+                tune_since = now;
+            }
+        } else if (!tune_fresh || !usable) fault(STOP_VISION);
+    }
     if (status.mode == RUN_DUTY_DEBUG) {
         /* Explicit open-loop diagnostic command, independent of racing duty_limit. */
         status.duty[0] = status.duty[1] = debug_duty_ticks / 10000.0f;
@@ -120,7 +157,7 @@ void app_control_tick_isr(void) {
             if (!ok) fault(STOP_NONFINITE);
             else motor_apply_forward(status.duty[0], status.duty[1]);
         }
-    } else if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING) {
+    } else if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING || status.mode == RUN_TUNE_RUNNING) {
         if (!status.feedback.valid)
             fault(STOP_ENCODER);
         else if (!good.valid || good.session_id != status.session_id ||
@@ -130,9 +167,10 @@ void app_control_tick_isr(void) {
             status.mode = RUN_STOPPING;
             status.reason = STOP_TRACK;
         }
-        if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING) {
+        if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING || status.mode == RUN_TUNE_RUNNING) {
             bool stopping = status.mode == RUN_STOPPING;
             float speed = good.speed_cap_mps, omega = good.omega_raw;
+            if (status.mode == RUN_TUNE_RUNNING) speed = fminf(speed, APP_TUNE_SPEED_MPS);
             if (status.vision_age_ms > (uint32_t)g_app_param.soft_timeout_ms) {
                 speed = 0;
                 stopping = true;
@@ -164,6 +202,7 @@ void app_control_tick_isr(void) {
                 motor_apply_forward(status.duty[0], status.duty[1]);
         }
     } else {
+        memset(&status.targets, 0, sizeof(status.targets));
         motor_brake_zero();
         status.duty[0] = status.duty[1] = 0;
         memset(pi, 0, sizeof(pi));
@@ -171,7 +210,8 @@ void app_control_tick_isr(void) {
     }
     if (board_time_us() - start > 4000) {
         status.overruns++;
-        if (status.overruns >= 3 && (status.mode == RUN_RUNNING || status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG))
+        if (status.overruns >= 3 && (status.mode == RUN_RUNNING || status.mode == RUN_DUTY_DEBUG ||
+                                   status.mode == RUN_SPEED_DEBUG || status.mode == RUN_TUNE_RUNNING))
             fault(STOP_TIMING);
     }
     app_exchange_publish_control(&status);

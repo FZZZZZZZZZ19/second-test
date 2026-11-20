@@ -55,7 +55,11 @@ void app_main_poll(void) {
     if (camera_frame_acquire(&frame)) {
         VisionOutput observation;
         (void)team_vision_step(&frame, &g_app_param, snapshot.session_id, &observation);
-        if (snapshot.mode != RUN_RUNNING) team_vision_reset();
+        if (snapshot.mode != RUN_RUNNING && snapshot.mode != RUN_TUNE_RUNNING)
+            team_vision_reset();
+        if ((snapshot.mode == RUN_TUNE_WAIT || snapshot.mode == RUN_TUNE_RUNNING) &&
+            observation.speed_cap_mps > APP_TUNE_SPEED_MPS)
+            observation.speed_cap_mps = APP_TUNE_SPEED_MPS;
         observation.reset_derivative=observation.state!=previous_track_state;
         previous_track_state=observation.state;
         MotionRequest request;

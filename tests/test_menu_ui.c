@@ -175,6 +175,16 @@ int main(void) {
     requests=0; click(); click(); hold(); /* target -> stop -> run 5 */
     assert((requests&REQ_RUN5) && !(requests&(REQ_RUN30|REQ_SPEED_DEBUG)));
     back(); assert(requests&REQ_HALT);
+    requests=0; click(); hold(); /* run 5 -> track tune */
+    assert(capture && requests==REQ_TRACK_TUNE);
+    s.stamp_ms++; poll(5); /* An unrelated tick does not acknowledge the request. */
+    assert(capture);
+    s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
+    assert(capture);
+    s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
+    s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
+    assert(!capture);
+    back();
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }
