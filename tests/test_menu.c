@@ -99,7 +99,8 @@ int main(void) {
     h.selected=3; menu_confirm(&h); menu_back(&h); assert(h.selected==3);
     h.selected=5; assert(menu_confirm(&h)==MENU_RUN5);
     assert(menu_back(&h)==MENU_STOP && h.selected==5);
-    h.selected=6; assert(menu_confirm(&h)==MENU_TRACK_TUNE);
+    h.selected=6; assert(menu_confirm(&h)==MENU_TRACK_TUNE && h.page==MENU_TUNE_IMAGE);
+    assert(menu_count(&h)==1);
     assert(menu_back(&h)==MENU_STOP && h.selected==6);
     h.selected=7; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
     menu_init(&h); h.selected=1; menu_confirm(&h); menu_confirm(&h);

@@ -53,7 +53,7 @@ unsigned menu_count(const MenuModel *m) {
 }
 const char *menu_title(const MenuModel *m) {
     static const char *const titles[] = {"V" APP_VERSION " MAIN","para","vision","control parameters",
-        "control","number input","start / camera","image","motor test","hardware","camera calib"};
+        "control","number input","start / camera","image","motor test","hardware","camera calib","track tune"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
 const char *menu_label(const MenuModel *m, unsigned i) {
@@ -95,7 +95,7 @@ MenuAction menu_back(MenuModel *m) {
     case MENU_CAMERA_CAL: return_to(m,MENU_VISION); return MENU_NONE;
     case MENU_PARA: return_to(m,MENU_MAIN); return MENU_NONE;
     case MENU_CONTROL: case MENU_RACE_IMAGE: return_to(m,MENU_MAIN); return MENU_STOP;
-    case MENU_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
+    case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
     case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;
@@ -127,7 +127,7 @@ MenuAction menu_confirm(MenuModel *m) {
     case MENU_CONTROL:
         if (i == 0 || i == 2) { enter(m, MENU_LIVE); return i ? MENU_VOFA : MENU_RUN30; }
         if (i == 5) { enter(m, MENU_LIVE); return MENU_RUN5; }
-        if (i == 6) { enter(m, MENU_LIVE); return MENU_TRACK_TUNE; }
+        if (i == 6) { enter(m, MENU_TUNE_IMAGE); return MENU_TRACK_TUNE; }
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
         if (i == 3) edit(m, 9);
         else { if (i == 7) return menu_back(m); return MENU_STOP; }
@@ -151,7 +151,7 @@ MenuAction menu_confirm(MenuModel *m) {
         else if (i == 15) return menu_back(m);
         break;
     }
-    case MENU_RACE_IMAGE: case MENU_IMAGE: case MENU_LIVE: return menu_back(m);
+    case MENU_RACE_IMAGE: case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return menu_back(m);
     case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;

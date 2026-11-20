@@ -181,10 +181,15 @@ int main(void) {
     assert(capture);
     s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
     assert(capture);
+    unsigned tune_images=images;
+    debug_view_frame(&f,&s,&v); assert(images==tune_images+1);
     s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
+    debug_view_frame(&f,&s,&v); assert(images==tune_images+1); /* Throttled preview. */
+    poll(100); debug_view_frame(&next_frame,&s,&v); assert(images==tune_images+2);
     s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
     assert(!capture);
-    back();
+    poll(100); debug_view_frame(&next_frame,&s,&v); assert(images==tune_images+2);
+    back(); assert(requests&REQ_HALT);
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

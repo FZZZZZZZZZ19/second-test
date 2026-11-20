@@ -8,6 +8,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+enum { TUNE_PREVIEW_PERIOD_MS = 100 };
 static MenuModel menu;
 static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms;
@@ -77,6 +78,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         app_control_camera_ready(true);
         app_exchange_request(REQ_TRACK_TUNE);
         tune_active = true;
+        last_image = board_time_ms() - TUNE_PREVIEW_PERIOD_MS;
         tune_request_session = s->session_id;
         note("wait for track");
         break;
@@ -114,7 +116,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
 }
 static void render(const ControlSnapshot *s, uint32_t now) {
     if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
-    if (menu.page != MENU_LIVE) line(0, menu_title(&menu));
+    if (menu.page != MENU_LIVE && menu.page != MENU_TUNE_IMAGE) line(0, menu_title(&menu));
     char text[40], a[12], b[12];
     if (menu.page == MENU_MAIN) {
         for (unsigned i = 0; i < 3; i++) {
@@ -122,6 +124,11 @@ static void render(const ControlSnapshot *s, uint32_t now) {
             styled_line(1+i*2,text,2,i==menu.selected);
         }
         line(7, "U/D OK K1:BACK"); return;
+    }
+    if (menu.page == MENU_TUNE_IMAGE) {
+        line(0, message);
+        styled_line(9,tune_active ? "OK/K1 stop/back" : "OK/K1 back",1,true);
+        return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
         if (now - last_image > 1000) {
@@ -216,7 +223,10 @@ void debug_view_poll(const ControlSnapshot *s) {
 void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionFeatures *v) {
     (void)s; (void)v;
     uint32_t now = board_time_ms();
-    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
+    bool tune_preview = menu.page == MENU_TUNE_IMAGE && tune_active &&
+        (s->mode == RUN_TUNE_WAIT || s->mode == RUN_TUNE_RUNNING) &&
+        now - last_image >= TUNE_PREVIEW_PERIOD_MS;
+    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE || tune_preview) {
         last_image = now;
         if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
         menu_display_camera(f->pixels, f->width, f->height, f->stride);
