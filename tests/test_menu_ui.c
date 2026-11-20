@@ -190,6 +190,10 @@ int main(void) {
     assert(!capture);
     poll(100); debug_view_frame(&next_frame,&s,&v); assert(images==tune_images+2);
     back(); assert(requests&REQ_HALT);
+    click(); hold(); /* track tune -> speed LPF */
+    assert(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF);
+    assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_SPEED_LPF_OFF));
+    hold(); assert(!(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF));
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

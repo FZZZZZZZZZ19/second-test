@@ -46,7 +46,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_VISION: return 5;
     case MENU_CAMERA_CAL: return 9;
     case MENU_PARAMS: return sizeof control_fields / sizeof control_fields[0] + 1;
-    case MENU_CONTROL: return 8;
+    case MENU_CONTROL: return 9;
     case MENU_KEYPAD: return 16;
     case MENU_LIVE: return 2;
     default: return 1;
@@ -60,7 +60,7 @@ const char *menu_title(const MenuModel *m) {
 const char *menu_label(const MenuModel *m, unsigned i) {
     static const char *const main_items[] = {"start","para","control"};
     static const char *const para_items[] = {"vision","control","hardware","save to flash","back"};
-    static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","run 5","track tune","back"};
+    static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","run 5","track tune","speed LPF","back"};
     if (i >= menu_count(m)) return "";
     switch (m->page) {
     case MENU_MAIN: return main_items[i];
@@ -130,8 +130,9 @@ MenuAction menu_confirm(MenuModel *m) {
         if (i == 5) { enter(m, MENU_LIVE); return MENU_RUN5; }
         if (i == 6) { enter(m, MENU_TUNE_IMAGE); return MENU_TRACK_TUNE; }
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
+        if (i == 7) return MENU_SPEED_LPF;
         if (i == 3) edit(m, 9);
-        else { if (i == 7) return menu_back(m); return MENU_STOP; }
+        else { if (i == 8) return menu_back(m); return MENU_STOP; }
         break;
     case MENU_KEYPAD: {
         size_t n = strlen(m->input);

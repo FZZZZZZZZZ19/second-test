@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#define APP_FLAG_SPEED_LPF_OFF (1u << 2)
+
 /* All speed/distance values are SI units; gain outputs use duty 0..1. */
 #define APP_FLOAT_FIELDS(X)                                                                        \
     X(wheel_left_m)                                                                                \
@@ -24,7 +26,7 @@ typedef struct {
     APP_FLOAT_FIELDS(DECL_FIELD)
 #undef DECL_FIELD
     uint32_t calibration_mask;
-    uint32_t flags; /* bit0: verified race-element profile, bit1: capture timing validated */
+    uint32_t flags; /* bit0: verified race-element profile, bit1: capture timing validated, bit2: speed LPF bypass */
     uint8_t threshold;
     int8_t encoder_sign[2];
 } AppParam;

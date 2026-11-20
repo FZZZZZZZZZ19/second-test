@@ -29,8 +29,11 @@ bool side_encoder_sample(float dt, uint32_t now, SideFeedback *out) {
                 feedback.valid = false;
                 continue;
             }
-            feedback.speed_mps[i] +=
-                dt / (g_app_param.encoder_tau_s + dt) * (speed - feedback.speed_mps[i]);
+            if (g_app_param.flags & APP_FLAG_SPEED_LPF_OFF)
+                feedback.speed_mps[i] = speed;
+            else
+                feedback.speed_mps[i] +=
+                    dt / (g_app_param.encoder_tau_s + dt) * (speed - feedback.speed_mps[i]);
             feedback.rolling_m[i] += distance;
         }
     }

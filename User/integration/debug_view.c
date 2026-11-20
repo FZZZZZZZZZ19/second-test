@@ -110,6 +110,13 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         (void)menu_back(&menu);
         break;
     }
+    case MENU_SPEED_LPF: {
+        AppParam candidate = g_app_param;
+        candidate.flags ^= APP_FLAG_SPEED_LPF_OFF;
+        if (save_parameters(&candidate,s))
+            note(candidate.flags & APP_FLAG_SPEED_LPF_OFF ? "LPF OFF saved" : "LPF ON saved");
+        break;
+    }
     case MENU_SAVE: (void)save_parameters(&g_app_param,s); break;
     default: break;
     }
@@ -173,7 +180,10 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         unsigned first = menu.selected / 5 * 5;
         for (unsigned row = 0; row < 5; row++) {
             unsigned i = first + row;
-            snprintf(text, sizeof text, "%c%s", i == menu.selected ? '>' : ' ', menu_label(&menu, i));
+            const char *label = menu_label(&menu,i);
+            if (menu.page == MENU_CONTROL && !strcmp(label,"speed LPF"))
+                label = g_app_param.flags & APP_FLAG_SPEED_LPF_OFF ? "speed LPF OFF" : "speed LPF ON";
+            snprintf(text, sizeof text, "%c%s", i == menu.selected ? '>' : ' ', label);
             styled_line(row + 2,text,1,i==menu.selected);
         }
     }

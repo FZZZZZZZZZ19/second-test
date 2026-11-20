@@ -44,6 +44,16 @@ int main(void) {
     SideFeedback feedback; assert(side_encoder_sample(.005f,5,&feedback));
     assert(feedback.delta[0]==20 && feedback.delta[1]==40);
     assert(feedback.speed_mps[0]>0 && feedback.speed_mps[1]>feedback.speed_mps[0]);
-    puts("PASS: real motor output port maps physical sides, PH, zero output, and encoder signs");
+    float instant = feedback.rolling_m[0] / .005f;
+    assert(fabsf(feedback.speed_mps[0]-instant/6)<.0001f);
+    g_app_param.flags |= APP_FLAG_SPEED_LPF_OFF;
+    raw[0]=(uint16_t)-40; raw[1]=80;
+    assert(side_encoder_sample(.005f,10,&feedback));
+    assert(fabsf(feedback.speed_mps[0]-instant)<.0001f);
+    assert(fabsf(feedback.speed_mps[1]-2*instant)<.0001f);
+    assert(feedback.count[0]==40 && feedback.count[1]==80);
+    raw[0]=(uint16_t)-2040;
+    assert(!side_encoder_sample(.005f,15,&feedback)); /* Raw overspeed protection. */
+    puts("PASS: selectable speed LPF and real motor output port maps physical sides, PH, zero output, and encoder signs");
     return 0;
 }
