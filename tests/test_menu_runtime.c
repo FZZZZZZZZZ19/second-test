@@ -42,6 +42,7 @@ static void check_tune(void) {
         assert(output.mode==RUN_TUNE_RUNNING && output.targets.model_v_mps<=APP_TUNE_SPEED_MPS+.001f);
     }
     assert(output.targets.left_mps>output.targets.right_mps); /* right turn */
+    assert(fabsf(output.targets.model_v_mps-APP_TUNE_SPEED_MPS)<.001f);
     publish_tune_frame(); tick(0);
     assert(output.mode==RUN_STATIC_DEBUG && output.reason==STOP_TUNE_DONE && duty[0]==0 && duty[1]==0);
     tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);

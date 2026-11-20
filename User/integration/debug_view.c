@@ -180,7 +180,10 @@ void debug_view_poll(const ControlSnapshot *s) {
         menu.page = MENU_MAIN; menu.selected = 1; note("stop before para");
     }
     if (tune_active && s->session_id != tune_request_session) {
-        if (s->mode == RUN_TUNE_RUNNING) note("track tune 2s");
+        if (s->mode == RUN_TUNE_RUNNING) {
+            snprintf(message, sizeof message, "track tune %lus",
+                     (unsigned long)(APP_TUNE_RUN_MS / 1000u));
+        }
         else if (s->mode != RUN_TUNE_WAIT) {
             tune_active = false;
             (void)camera_frame_set_running(false);
