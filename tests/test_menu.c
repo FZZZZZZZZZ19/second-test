@@ -218,6 +218,16 @@ int main(void) {
     menu_confirm(&tune_menu); strcpy(tune_menu.input,"0.65");
     assert(menu_apply_value(&tune_menu,&q) && param_encode(&q,22,old_signs));
     assert(param_decode(old_signs,&q,&seq) && fabsf(q.tune_speed_mps-.65f)<.0001f);
+    MenuModel accel_menu; menu_init(&accel_menu); accel_menu.page=MENU_PARAMS;
+    accel_menu.selected=13;
+    assert(!strcmp(menu_label(&accel_menu,13),"accel m/s2"));
+    menu_confirm(&accel_menu);
+    assert(fabsf(menu_param_value(&accel_menu,&q)-.3f)<.0001f);
+    strcpy(accel_menu.input,"0"); assert(!menu_apply_value(&accel_menu,&q));
+    strcpy(accel_menu.input,"5.01"); assert(!menu_apply_value(&accel_menu,&q));
+    strcpy(accel_menu.input,"0.8"); assert(menu_apply_value(&accel_menu,&q));
+    assert(param_encode(&q,23,old_signs) && param_decode(old_signs,&q,&seq));
+    assert(fabsf(q.accel_mps2-.8f)<.0001f && fabsf(q.decel_mps2-.6f)<.0001f);
     float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
     put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
     put32(record+248,app_crc32(record,248));
