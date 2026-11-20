@@ -170,7 +170,7 @@ void app_control_tick_isr(void) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING || status.mode == RUN_TUNE_RUNNING) {
             bool stopping = status.mode == RUN_STOPPING;
             float speed = good.speed_cap_mps, omega = good.omega_raw;
-            if (status.mode == RUN_TUNE_RUNNING) speed = fminf(speed, APP_TUNE_SPEED_MPS);
+            if (status.mode == RUN_TUNE_RUNNING) speed = fminf(speed, g_app_param.tune_speed_mps);
             if (status.vision_age_ms > (uint32_t)g_app_param.soft_timeout_ms) {
                 speed = 0;
                 stopping = true;

@@ -28,9 +28,13 @@ static const Field fields[] = {
     F("ground_h0",ground_h0,-1000000,1000000), F("ground_h1",ground_h1,-1000000,1000000),
     F("ground_h2",ground_h2,-1000000,1000000), F("ground_h3",ground_h3,-1000000,1000000),
     F("ground_h4",ground_h4,-1000000,1000000), F("ground_h5",ground_h5,-1000000,1000000),
-    F("ground_h6",ground_h6,-1000000,1000000), F("ground_h7",ground_h7,-1000000,1000000)
+    F("ground_h6",ground_h6,-1000000,1000000), F("ground_h7",ground_h7,-1000000,1000000),
+    F("corner m/s", speed_corner, 0, APP_MAX_SPEED_MPS),
+    F("element m/s", speed_element, 0, APP_MAX_SPEED_MPS),
+    F("tune speed m/s", tune_speed_mps, .001f, APP_MAX_SPEED_MPS)
 #undef H
 };
+static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,13,14};
 static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","-",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
@@ -40,7 +44,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_HARDWARE: return 11;
     case MENU_VISION: return 5;
     case MENU_CAMERA_CAL: return 9;
-    case MENU_PARAMS: return 13;
+    case MENU_PARAMS: return sizeof control_fields / sizeof control_fields[0] + 1;
     case MENU_CONTROL: return 8;
     case MENU_KEYPAD: return 16;
     case MENU_LIVE: return 2;
@@ -64,7 +68,7 @@ const char *menu_label(const MenuModel *m, unsigned i) {
     case MENU_KEYPAD: return digits[i];
     case MENU_VISION: return i==4?"back":i==3?"camera calib":fields[i].name;
     case MENU_CAMERA_CAL: return i==8?"back":fields[25+i].name;
-    case MENU_PARAMS: return i == 12 ? "back" : fields[i + 3].name;
+    case MENU_PARAMS: return i == menu_count(m)-1 ? "back" : fields[control_fields[i]].name;
     case MENU_HARDWARE: return i==10?"back":fields[15+i].name;
     case MENU_LIVE: return i ? "back" : "stop";
     default: return "back";
@@ -118,7 +122,7 @@ MenuAction menu_confirm(MenuModel *m) {
     case MENU_PARAMS:
     case MENU_HARDWARE:
         if (i == menu_count(m) - 1) return menu_back(m);
-        else edit(m, i + (m->page == MENU_PARAMS ? 3 : m->page == MENU_HARDWARE ? 15 : 0));
+        else edit(m, m->page == MENU_PARAMS ? control_fields[i] : i+15);
         break;
     case MENU_CONTROL:
         if (i == 0 || i == 2) { enter(m, MENU_LIVE); return i ? MENU_VOFA : MENU_RUN30; }
@@ -184,10 +188,6 @@ bool menu_apply_value(const MenuModel *m, AppParam *p) {
     value/=f->ui_scale; /* hardware UI uses millimetres; AppParam remains SI */
     if (f->offset==offsetof(AppParam,effective_track_m) && value>0 && value<.03f) return false;
     if ((f->offset==offsetof(AppParam,counts_left) || f->offset==offsetof(AppParam,counts_right)) && floorf(value)!=value) return false;
-    if ((m->field == 9 && value > p->speed_limit_mps) ||
-        (m->field == 11 && (value < p->debug_speed_mps || value < p->speed_normal ||
-                          value < p->speed_corner || value < p->speed_element)) ||
-        (m->field == 12 && value > p->speed_limit_mps)) return false;
     memcpy((char *)p + f->offset, &value, sizeof value);
     if (m->field == 3) p->kp_right = value;
     if (m->field == 4) p->ki_right = value;

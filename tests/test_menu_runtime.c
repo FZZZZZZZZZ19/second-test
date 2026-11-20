@@ -29,6 +29,7 @@ static void publish_tune_frame(void) {
 }
 static void check_tune(void) {
     feedback.valid=true;
+    g_app_param.tune_speed_mps=.65f;
     app_control_camera_ready(true);
     publish_tune_frame(); /* A valid frame from before the request cannot start the car. */
     tick(REQ_TRACK_TUNE);
@@ -39,10 +40,10 @@ static void check_tune(void) {
     assert(output.mode==RUN_TUNE_RUNNING);
     for (unsigned i=1;i<APP_TUNE_RUN_MS/5;i++) {
         publish_tune_frame(); tick(0);
-        assert(output.mode==RUN_TUNE_RUNNING && output.targets.model_v_mps<=APP_TUNE_SPEED_MPS+.001f);
+        assert(output.mode==RUN_TUNE_RUNNING && output.targets.model_v_mps<=g_app_param.tune_speed_mps+.001f);
     }
     assert(output.targets.left_mps>output.targets.right_mps); /* right turn */
-    assert(fabsf(output.targets.model_v_mps-APP_TUNE_SPEED_MPS)<.001f);
+    assert(fabsf(output.targets.model_v_mps-g_app_param.tune_speed_mps)<.001f);
     publish_tune_frame(); tick(0);
     assert(output.mode==RUN_STATIC_DEBUG && output.reason==STOP_TUNE_DONE && duty[0]==0 && duty[1]==0);
     tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
@@ -56,6 +57,13 @@ static void check_tune(void) {
     assert(output.mode==RUN_FAULT && output.reason==STOP_ENCODER && duty[0]==0 && duty[1]==0);
     feedback.valid=true;
     tick(REQ_RESET); tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
+    g_app_param.speed_limit_mps=.25f;
+    for (unsigned i=0;i<200;i++) {
+        publish_tune_frame(); tick(0);
+        assert(output.mode==RUN_TUNE_RUNNING);
+        assert(output.targets.left_mps<=.251f && output.targets.right_mps<=.251f);
+    }
+    assert(output.targets.left_mps>.24f);
     tick(REQ_HALT);
     assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
 }

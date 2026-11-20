@@ -45,7 +45,8 @@ int main(void) {
     m.selected=1; menu_confirm(&m); assert(m.page==MENU_PARAMS);
     menu_confirm(&m); strcpy(m.input,".5"); assert(menu_apply_value(&m,&p));
     assert(p.kp_left==.5f && p.kp_right==.5f);
-    m.field=9; strcpy(m.input,".5"); assert(!menu_apply_value(&m,&p));
+    m.field=9; strcpy(m.input,".5"); assert(menu_apply_value(&m,&p));
+    assert(p.debug_speed_mps==.5f && p.speed_limit_mps==.4f);
     strcpy(m.input,".25"); assert(menu_apply_value(&m,&p));
     m.page=MENU_RACE_IMAGE; assert(menu_confirm(&m)==MENU_STOP && m.page==MENU_MAIN);
     m.selected=2; menu_confirm(&m); assert(m.page==MENU_CONTROL);
@@ -163,29 +164,29 @@ int main(void) {
     assert(q.body_length_m==.3f && q.body_width_m==.2f);
     uint8_t schema5[APP_PARAM_RECORD_BYTES]; memcpy(schema5,record,sizeof schema5);
     float schema5_center=93.5f; memcpy(schema5+32+23*4,&schema5_center,4);
-    put32(schema5+4,5); put32(schema5+248,app_crc32(schema5,248));
+    put32(schema5+4,5); put32(schema5+12,52); put32(schema5+248,app_crc32(schema5,248));
     assert(param_decode(schema5,&q,&seq) && q.center_x_px==93.5f);
     assert(q.body_length_m==.3f && q.body_width_m==.2f && q.debug_speed_mps==.2f);
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h2==CAL_GROUND_H2);
     uint8_t cropped_record[APP_PARAM_RECORD_BYTES];
     p.center_x_px=62.5f; p.ground_h2=-.6f;
     assert(param_encode(&p,8,cropped_record));
-    put32(cropped_record+4,6); put32(cropped_record+248,app_crc32(cropped_record,248));
+    put32(cropped_record+4,6); put32(cropped_record+12,52); put32(cropped_record+248,app_crc32(cropped_record,248));
     assert(param_decode(cropped_record,&q,&seq) && q.center_x_px==92.5f);
     assert(q.ground_h2==CAL_GROUND_H2 && q.debug_speed_mps==.2f && q.track_m==p.track_m);
     uint8_t old_signs[APP_PARAM_RECORD_BYTES];
     memcpy(old_signs,record,sizeof old_signs);
-    put32(old_signs+4,7); put32(old_signs+28,0);
+    put32(old_signs+4,7); put32(old_signs+12,52); put32(old_signs+28,0);
     put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq));
     assert(q.encoder_sign[0]==-1 && q.encoder_sign[1]==1);
     assert(q.track_m==p.track_m && q.debug_speed_mps==p.debug_speed_mps);
-    put32(old_signs+4,8); put32(old_signs+28,1); /* v1.50.17..19: left -, right + */
+    put32(old_signs+4,8); put32(old_signs+12,52); put32(old_signs+28,1); /* v1.50.17..19: left -, right + */
     put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq));
     assert(q.encoder_sign[0]==-1 && q.encoder_sign[1]==1);
     assert(q.debug_speed_mps==p.debug_speed_mps && q.track_m==p.track_m);
-    put32(old_signs+4,9); put32(old_signs+28,3); /* v1.50.20: both - */
+    put32(old_signs+4,9); put32(old_signs+12,52); put32(old_signs+28,3); /* v1.50.20: both - */
     put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq));
     assert(q.encoder_sign[0]==-1 && q.encoder_sign[1]==1);
@@ -200,12 +201,22 @@ int main(void) {
     strcpy(speed_edit.input,"5.01"); assert(!menu_apply_value(&speed_edit,&speed_range));
     speed_range.debug_speed_mps=.2f; speed_range.speed_limit_mps=.4f;
     assert(param_encode(&speed_range,20,old_signs));
-    put32(old_signs+4,10); put32(old_signs+248,app_crc32(old_signs,248));
+    put32(old_signs+4,10); put32(old_signs+12,52); put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq));
     assert(q.speed_limit_mps==5 && q.debug_speed_mps==.2f);
     q.speed_limit_mps=2;
     assert(param_encode(&q,21,old_signs) && param_decode(old_signs,&q,&seq));
     assert(q.speed_limit_mps==2); /* later saved limits remain configurable */
+    put32(old_signs+4,11); put32(old_signs+12,52);
+    put32(old_signs+248,app_crc32(old_signs,248));
+    assert(param_decode(old_signs,&q,&seq) && q.tune_speed_mps==APP_TUNE_SPEED_DEFAULT_MPS);
+    assert(q.speed_limit_mps==2);
+    MenuModel tune_menu; menu_init(&tune_menu); tune_menu.page=MENU_PARAMS;
+    tune_menu.selected=12;
+    assert(!strcmp(menu_label(&tune_menu,12),"tune speed m/s"));
+    menu_confirm(&tune_menu); strcpy(tune_menu.input,"0.65");
+    assert(menu_apply_value(&tune_menu,&q) && param_encode(&q,22,old_signs));
+    assert(param_decode(old_signs,&q,&seq) && fabsf(q.tune_speed_mps-.65f)<.0001f);
     float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
     put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
     put32(record+248,app_crc32(record,248));
@@ -215,7 +226,7 @@ int main(void) {
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h7==CAL_GROUND_H7);
     uint8_t migrated[APP_PARAM_RECORD_BYTES];
     q.center_x_px=61; q.ground_h2=-.42f;
-    assert(param_encode(&q,9,migrated) && migrated[4]==11);
+    assert(param_encode(&q,9,migrated) && migrated[4]==12);
     AppParam again; uint32_t migrated_seq;
     assert(param_decode(migrated,&again,&migrated_seq));
     assert(again.center_x_px==61 && again.ground_h2==-.42f && migrated_seq==9);
