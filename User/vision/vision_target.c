@@ -29,10 +29,10 @@ bool vision_target_step(const VisionFeatures *f,const TrackDecision *d,const App
         u[i]=q->x[row];
         v[i]=APP_HEIGHT-3u-row*APP_ROW_STEP;
     }
-    return vision_project_path(p,u,v,o);
+    return vision_project_path(p,u,v,0,o);
 }
 
-bool vision_project_path(const AppParam *p,const float u[3],const float v[3],VisionOutput *o) {
+bool vision_project_path(const AppParam *p,const float u[3],const float v[3],float forward_offset_m,VisionOutput *o) {
     o->valid=false;
     float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
     for(unsigned i=0;i<8;i++)if(!isfinite(h[i]))return false;
@@ -43,6 +43,7 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],Vis
         if (!isfinite(u[i]) || !isfinite(v[i]) || u[i]<0 || u[i]>=APP_WIDTH ||
             v[i]<0 || v[i]>=APP_HEIGHT || !project(p,u[i],v[i],&x[i],&z[i]))
             return false;
+        z[i] -= forward_offset_m;
     }
     if(!(z[0]<z[1]&&z[1]<z[2]))return false;
     float a=hypotf(z[1]-z[0],x[1]-x[0]);

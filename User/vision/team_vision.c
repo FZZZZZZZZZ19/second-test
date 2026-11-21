@@ -39,7 +39,7 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
         if (preview && u[i]>=0 && u[i]<APP_WIDTH && v[i]>=0 && v[i]<APP_HEIGHT)
             preview[i]=(VisionPoint){points[i].x,points[i].y};
     }
-    if (!vision_project_path(params,u,v,out)) {
+    if (!vision_project_path(params,u,v,VISION_FORWARD_OFFSET_M,out)) {
         out->state=TRACK_DEGRADED;
         return false;
     }

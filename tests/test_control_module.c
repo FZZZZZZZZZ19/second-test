@@ -41,7 +41,7 @@ int main(void) {
     v.frame_id++; v.capture_ms+=300;
     assert(control_path_step(&state,&v,&p,&motion));
     assert(fabsf(motion.omega_raw-.02f)<1e-5f);
-    v.frame_id++; v.forward_m=0;
+    v.frame_id++; v.forward_m=-VISION_FORWARD_OFFSET_M;
     assert(!control_path_step(&state,&v,&p,&motion));
     v.forward_m=.2f; v.curvature=INFINITY;
     assert(!control_path_step(&state,&v,&p,&motion));

@@ -3,6 +3,8 @@
 #include "app_types.h"
 #include <stdbool.h>
 #include <stdint.h>
+#define VISION_FORWARD_OFFSET_M 0.35f
+
 typedef struct {
     uint32_t frame_id, capture_ms, session_id;
     float direction_rad, distance_px, speed_cap_mps;
@@ -10,6 +12,6 @@ typedef struct {
     uint8_t confidence;
     bool valid, stop_requested, reset_derivative;
     /* Vehicle ground coordinates: right positive, forward positive; curvature right positive. */
-    float lateral_m, forward_m, curvature;
+    float lateral_m, forward_m, curvature; /* forward_m is signed after origin shift. */
 } VisionOutput;
 #endif

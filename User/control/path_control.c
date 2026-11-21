@@ -18,7 +18,7 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->confidence = v->confidence;
     o->stop_requested = v->stop_requested;
     if (!v->valid || v->session_id != s->session || v->frame_id == s->previous_frame ||
-        !isfinite(v->lateral_m) || !isfinite(v->forward_m) || v->forward_m <= 0 ||
+        !isfinite(v->lateral_m) || !isfinite(v->forward_m) || v->forward_m <= -VISION_FORWARD_OFFSET_M ||
         !isfinite(v->curvature) || !isfinite(p->lateral_kp) || p->lateral_kp < 0 ||
         !isfinite(p->lateral_kd) || p->lateral_kd < 0 ||
         !isfinite(p->lateral_tau_s) || p->lateral_tau_s < 0 ||
