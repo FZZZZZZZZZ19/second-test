@@ -9,7 +9,7 @@
 enum { MAX_STEP = 512, LINE_LENGTH = MAX_STEP };
 static const FrameView *source_frame;
 static uint8_t g_binary[SCUT_IMAGE_H][(SCUT_IMAGE_W+7)/8];
-static const int experience_value=10, ww=2, bw=2, max_length=90, offset_w=5, target_dist=65;
+static const int experience_value=10, ww=2, bw=2, max_length=90, offset_w=5;
 /**
  * @brief state: 0 正常情况 1 直角弯 2 识别到1->2的跳变 3 十字路口 4 环岛
  * @brief flag: 0 正常情况 1 识别到直角弯 2 识别1到Y 3 进入Y 4 识别到十字路口 5 识别到环岛 6 开始进入环岛 
@@ -1395,7 +1395,8 @@ void team_vision_reset(void)
     elem_lr = elem_lr_manual = 0;
 }
 
-bool team_vision_points(const FrameView *frame, TeamPixel points[3], TeamPixel *near_mid, int *element, int *stage)
+bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points[3],
+                        TeamPixel *near_mid, int *element, int *stage)
 {
     *element = *stage = -1;
     if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
@@ -1420,7 +1421,7 @@ bool team_vision_points(const FrameView *frame, TeamPixel points[3], TeamPixel *
     *element=state;
     *stage=flag;
     if (!match_target_line(offset_w) || target_statics < 3) return false;
-    pred_points(target_dist,near_mid);
+    pred_points(preview_px,near_mid);
     points[0]=(TeamPixel){(lx+rx)/2,(ly+ry)/2};
     points[1]=(TeamPixel){X1,Y1};
     points[2]=(TeamPixel){X2,Y2};

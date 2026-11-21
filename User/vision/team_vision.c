@@ -12,7 +12,10 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
     out->capture_ms=frame->capture_ms;
     TeamPixel points[3], near_mid;
     int element, stage;
-    bool has_path = team_vision_points(frame,points,&near_mid,&element,&stage);
+    float preview_px = params->turn_preview_px;
+    if (!(preview_px >= APP_TURN_PREVIEW_MIN_PX && preview_px <= APP_TURN_PREVIEW_MAX_PX))
+        return false;
+    bool has_path = team_vision_points(frame,(int)preview_px,points,&near_mid,&element,&stage);
     if (element >= 0)
         out->element_debug = (VisionElementDebug){(uint8_t)element, (uint8_t)stage, true};
     if (!has_path) return false;

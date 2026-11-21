@@ -59,6 +59,18 @@ int main(void) {
     assert(vision_project_path(&params,px,py,VISION_FORWARD_OFFSET_M,&full));
     assert(fabsf(full.curvature)>.1f && fabsf(out.curvature)<.02f);
     assert(fabsf(out.heading_rad-straight_heading)<.001f);
+    AppParam short_preview=params, long_preview=params;
+    short_preview.turn_preview_px=35;
+    long_preview.turn_preview_px=90;
+    VisionPoint short_points[3], long_points[3];
+    VisionOutput short_out, long_out;
+    team_vision_reset();
+    assert(team_vision_step(&frame,&short_preview,9,&short_out,short_points));
+    team_vision_reset();
+    assert(team_vision_step(&frame,&long_preview,9,&long_out,long_points));
+    assert(short_points[0].x==long_points[0].x && short_points[0].y==long_points[0].y);
+    assert(short_points[1].y>long_points[1].y && short_points[2].y>long_points[2].y);
+    assert(fabsf(long_out.heading_rad-straight_heading)>fabsf(short_out.heading_rad-straight_heading));
 
     /* At entry the near point can be centred while the ground path
      * already heads into the bend. An offset PD cannot see that angle. */

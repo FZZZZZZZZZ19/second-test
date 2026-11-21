@@ -3,6 +3,7 @@
 #include "vehicle_param.h"
 static inline void vision_param_defaults(AppParam *p) {
     p->center_x_px = (APP_WIDTH - 1u) * .5f;
+    p->turn_preview_px = APP_TURN_PREVIEW_DEFAULT_PX;
     p->element_timeout_s = 20;
     p->confirm_ms = 80;
     p->release_ms = 120;

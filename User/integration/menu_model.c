@@ -6,7 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 typedef struct { const char *name; size_t offset; float min, max, ui_scale; } Field;
-enum { HEADING_GAIN_FIELD = 38, VISION_CAMERA_CAL = 3, VISION_HEADING_GAIN = 4, VISION_BACK = 5 };
+enum { HEADING_GAIN_FIELD = 38, TURN_PREVIEW_FIELD, VISION_CAMERA_CAL = 3,
+       VISION_HEADING_GAIN = 4, VISION_TURN_PREVIEW = 5, VISION_BACK = 6 };
 #define F(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1}
 static const Field fields[] = {
     F("omega Kp", lateral_kp, 0, 10000), F("omega Kd", lateral_kd, 0, 10000),
@@ -35,7 +36,8 @@ static const Field fields[] = {
     F("tune speed m/s", tune_speed_mps, .001f, APP_MAX_SPEED_MPS),
     F("accel m/s2", accel_mps2, .01f, 5.0f),
     F("tune time s", tune_duration_s, APP_TUNE_MIN_S, APP_TUNE_MAX_S),
-    [HEADING_GAIN_FIELD] = F("heading gain", heading_gain_per_s, 0, APP_HEADING_GAIN_MAX)
+    [HEADING_GAIN_FIELD] = F("heading gain", heading_gain_per_s, 0, APP_HEADING_GAIN_MAX),
+    [TURN_PREVIEW_FIELD] = F("turn preview px", turn_preview_px, APP_TURN_PREVIEW_MIN_PX, APP_TURN_PREVIEW_MAX_PX)
 #undef H
 };
 static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,37,36,13,14};
@@ -73,7 +75,8 @@ const char *menu_label(const MenuModel *m, unsigned i) {
     case MENU_VISION:
         if (i == VISION_BACK) return "back";
         if (i == VISION_CAMERA_CAL) return "camera calib";
-        return fields[i == VISION_HEADING_GAIN ? HEADING_GAIN_FIELD : i].name;
+        if (i == VISION_HEADING_GAIN) return fields[HEADING_GAIN_FIELD].name;
+        return fields[i == VISION_TURN_PREVIEW ? TURN_PREVIEW_FIELD : i].name;
     case MENU_CAMERA_CAL: return i==8?"back":fields[25+i].name;
     case MENU_PARAMS: return i == menu_count(m)-1 ? "back" : fields[control_fields[i]].name;
     case MENU_HARDWARE: return i==10?"back":fields[15+i].name;
@@ -122,7 +125,9 @@ MenuAction menu_confirm(MenuModel *m) {
     case MENU_VISION:
         if (i == VISION_CAMERA_CAL) { enter(m,MENU_CAMERA_CAL); break; }
         if (i == VISION_BACK) return menu_back(m);
-        edit(m, i == VISION_HEADING_GAIN ? HEADING_GAIN_FIELD : i); break;
+        if (i == VISION_HEADING_GAIN) edit(m, HEADING_GAIN_FIELD);
+        else edit(m, i == VISION_TURN_PREVIEW ? TURN_PREVIEW_FIELD : i);
+        break;
     case MENU_CAMERA_CAL:
         if(i==8) return menu_back(m);
         edit(m,25+i); break;
@@ -195,7 +200,8 @@ bool menu_apply_value(const MenuModel *m, AppParam *p) {
     if (*end || !isfinite(value) || value < f->min || value > f->max) return false;
     value/=f->ui_scale; /* hardware UI uses millimetres; AppParam remains SI */
     if (f->offset==offsetof(AppParam,effective_track_m) && value>0 && value<.03f) return false;
-    if ((f->offset==offsetof(AppParam,counts_left) || f->offset==offsetof(AppParam,counts_right)) && floorf(value)!=value) return false;
+    if ((f->offset==offsetof(AppParam,counts_left) || f->offset==offsetof(AppParam,counts_right) ||
+         m->field==TURN_PREVIEW_FIELD) && floorf(value)!=value) return false;
     memcpy((char *)p + f->offset, &value, sizeof value);
     if (m->field == 3) p->kp_right = value;
     if (m->field == 4) p->ki_right = value;

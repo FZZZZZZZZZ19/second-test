@@ -9,7 +9,8 @@
 enum { PARAM_FLOAT_COUNT = 0 APP_FLOAT_FIELDS(PARAM_COUNT) };
 #undef PARAM_COUNT
 _Static_assert(32 + 4 * PARAM_FLOAT_COUNT <= 248, "parameter payload exceeds record");
-enum { PARAM_SCHEMA = 14 };
+enum { HEADING_GAIN_SCHEMA = 14, PARAM_SCHEMA = 15 };
+_Static_assert(APP_TURN_PREVIEW_MAX_PX <= UINT8_MAX, "turn preview fits in one byte");
 void param_defaults(AppParam *p) {
     memset(p, 0, sizeof(*p));
     vision_param_defaults(p);
@@ -25,6 +26,9 @@ static bool validate_param(const AppParam *p, bool allow_missing) {
 #undef CHECK_FINITE
     if (!isfinite(p->heading_gain_per_s) || p->heading_gain_per_s < 0 ||
         p->heading_gain_per_s > APP_HEADING_GAIN_MAX)
+        return false;
+    if (!isfinite(p->turn_preview_px) || p->turn_preview_px < APP_TURN_PREVIEW_MIN_PX ||
+        p->turn_preview_px > APP_TURN_PREVIEW_MAX_PX || floorf(p->turn_preview_px) != p->turn_preview_px)
         return false;
     if ((!allow_missing || p->wheel_left_m != 0) && (p->wheel_left_m < .01f || p->wheel_left_m > .3f)) return false;
     if ((!allow_missing || p->wheel_right_m != 0) && (p->wheel_right_m < .01f || p->wheel_right_m > .3f)) return false;
@@ -102,8 +106,8 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
     uint32_t signs = (p->encoder_sign[0] < 0 ? 1u : 0u) | (p->encoder_sign[1] < 0 ? 2u : 0u);
-    /* Pack the threshold and two sign bits to free one word for the new gain. */
-    put32(out + 24, p->threshold | (signs << 8));
+    /* Reuse the packed metadata word without moving the legacy float payload. */
+    put32(out + 24, p->threshold | (signs << 8) | ((uint32_t)p->turn_preview_px << 16));
     uint32_t heading_bits;
     memcpy(&heading_bits, &p->heading_gain_per_s, sizeof heading_bits);
     put32(out + 28, heading_bits);
@@ -154,7 +158,12 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     uint32_t threshold = get32(in + 24);
     uint32_t signs = get32(in + 28);
     candidate.heading_gain_per_s = APP_HEADING_GAIN_DEFAULT;
+    candidate.turn_preview_px = APP_TURN_PREVIEW_DEFAULT_PX;
     if (schema == PARAM_SCHEMA) {
+        candidate.turn_preview_px = (float)(threshold >> 16);
+        threshold &= 0xffffu;
+    }
+    if (schema >= HEADING_GAIN_SCHEMA) {
         memcpy(&candidate.heading_gain_per_s, &signs, sizeof signs);
         signs = threshold >> 8;
         threshold &= 0xffu;
