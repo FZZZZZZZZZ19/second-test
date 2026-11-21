@@ -877,7 +877,7 @@ static int match_target_line(int theta)
 
 static int X1 = -1,Y1 = -1,X2 = -1,Y2 = -1;
 
-static void pred_points(int distance)
+static void pred_points(int distance, TeamPixel *near_mid)
 {
     if (target_statics <= 0) 
     {
@@ -905,6 +905,7 @@ static void pred_points(int distance)
     {
         index = target_statics - 1;
     }
+    *near_mid = (TeamPixel){target_mid_line[index/4][0],target_mid_line[index/4][1]};
     X1 = target_mid_line[index/2][0];
     Y1 = target_mid_line[index/2][1];
     X2 = target_mid_line[index][0];
@@ -1390,7 +1391,7 @@ void team_vision_reset(void)
     elem_lr = elem_lr_manual = 0;
 }
 
-bool team_vision_points(const FrameView *frame, TeamPixel points[3], int *element, int *stage)
+bool team_vision_points(const FrameView *frame, TeamPixel points[3], TeamPixel *near_mid, int *element, int *stage)
 {
     if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
         frame->height != APP_HEIGHT || frame->stride < frame->width)
@@ -1411,7 +1412,7 @@ bool team_vision_points(const FrameView *frame, TeamPixel points[3], int *elemen
     reset_target_line();
     update_info();
     if (errors || !match_target_line(offset_w) || target_statics < 3) return false;
-    pred_points(target_dist);
+    pred_points(target_dist,near_mid);
     points[0]=(TeamPixel){(lx+rx)/2,(ly+ry)/2};
     points[1]=(TeamPixel){X1,Y1};
     points[2]=(TeamPixel){X2,Y2};

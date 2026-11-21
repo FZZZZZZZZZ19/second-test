@@ -10,9 +10,9 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
     if (!frame || !params) return false;
     out->frame_id=frame->frame_id;
     out->capture_ms=frame->capture_ms;
-    TeamPixel points[3];
+    TeamPixel points[3], near_mid;
     int element, stage;
-    if (!team_vision_points(frame,points,&element,&stage)) return false;
+    if (!team_vision_points(frame,points,&near_mid,&element,&stage)) return false;
 
     out->state=TRACK_NORMAL;
     out->speed_cap_mps=params->speed_normal;
@@ -43,6 +43,13 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
         out->state=TRACK_DEGRADED;
         return false;
     }
+    /* Keep the full preview for validation, but only use the near section
+     * for feedforward. A far corner should not steer a straight near path. */
+    float near_u[3]={u[0],near_mid.x,u[1]};
+    float near_v[3]={v[0],near_mid.y,v[1]};
+    VisionOutput near={.speed_cap_mps=out->speed_cap_mps};
+    out->curvature=vision_project_path(params,near_u,near_v,VISION_FORWARD_OFFSET_M,&near)
+                   ? near.curvature : 0;
     out->confidence=60;
     return true;
 }

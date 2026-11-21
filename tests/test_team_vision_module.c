@@ -1,5 +1,6 @@
 #include "A_vision/vision_all.h"
 #include "control_api.h"
+#include "vision_api.h"
 #include "vehicle_calibration.h"
 #include <assert.h>
 #include <math.h>
@@ -40,12 +41,28 @@ int main(void) {
     path_control_reset(&control,9);
     assert(control_path_step(&control,&out,&params,&request));
     assert(request.omega_raw<0 && request.speed_cap_mps==params.speed_normal);
+    /* The far bend must not trigger near curvature while the car is on the straight. */
+    for (unsigned y=0;y<85;y++) {
+        memset(pixels[y],15,sizeof pixels[y]);
+        unsigned bend=(85-y)/2;
+        if (bend>35) bend=35;
+        memset(&pixels[y][107+bend],220,11);
+    }
+    frame.frame_id++;
+    team_vision_reset();
+    assert(team_vision_step(&frame,&params,9,&out,preview));
+    float px[3],py[3];
+    for (unsigned i=0;i<3;i++) { px[i]=preview[i].x; py[i]=preview[i].y; }
+    VisionOutput full={0};
+    assert(vision_project_path(&params,px,py,VISION_FORWARD_OFFSET_M,&full));
+    assert(fabsf(full.curvature)>.1f && fabsf(out.curvature)<.02f);
+    stripe(112);
     frame.frame_id++;
     params.ground_h2 -= .2f;
     assert(team_vision_step(&frame,&params,9,&out,NULL) && out.lateral_m<0);
     memset(pixels,0,sizeof pixels);
     frame.frame_id++;
-    assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid && out.frame_id==3);
+    assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid && out.frame_id==4);
     assert(!control_path_step(&control,&out,&params,&request) && !request.valid);
     stripe(112);
     params.ground_h0=NAN;

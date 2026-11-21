@@ -1,6 +1,6 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.6.10"
+#define APP_VERSION "1.6.11"
 #define APP_MAX_SPEED_MPS 5.0f
 #define APP_TUNE_SPEED_DEFAULT_MPS 1.0f
 #define APP_TUNE_DEFAULT_S 10.0f
