@@ -1,6 +1,6 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.6.13"
+#define APP_VERSION "1.6.14"
 #define APP_HEADING_GAIN_DEFAULT 2.0f
 #define APP_HEADING_GAIN_MAX 20.0f
 #define APP_MAX_SPEED_MPS 5.0f

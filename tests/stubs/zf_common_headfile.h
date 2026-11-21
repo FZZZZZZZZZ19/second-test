@@ -33,4 +33,5 @@ void tft180_show_gray_image(uint16_t x,uint16_t y,const uint8_t *p,uint16_t w,ui
 void uart_write_buffer(int uart,const uint8_t *p,unsigned len);
 void pit_disable(int timer);
 void pit_ms_init(int timer,unsigned period);
+void system_delay_ms(uint32_t ms);
 #endif

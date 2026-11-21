@@ -2,17 +2,18 @@
 #include "maintenance.h"
 #include "menu_display.h"
 #include "menu_font.h"
+#include "A_vision/vision_all.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-AppParam g_app_param;
 uint8_t mt9v03x_image[120][188];
 volatile uint8_t mt9v03x_finish_flag;
 static uint32_t now, requests;
 static uint8_t key=7, record[APP_PARAM_RECORD_BYTES];
 static ControlSnapshot s;
 static unsigned resumes, images, saves, packets;
+static unsigned vision_steps, motion_requests;
 static bool capture, save_ok=true;
 static int camera_error;
 static unsigned char screen[160][128];
@@ -22,12 +23,24 @@ void board_irq_restore(BoardIrqToken t) { (void)t; }
 void board_memory_barrier(void) {}
 uint32_t board_time_ms(void) { return now; }
 void board_clock_init(void) { now=0; }
+void board_controls_init(void) {}
+void system_delay_ms(uint32_t ms) { (void)ms; }
 uint8_t board_key_code(void) { return key; }
 bool board_camera_stop(void) { capture=false; return true; }
 bool board_camera_start(void) { capture=true; resumes++; return true; }
 int mt9v03x_init(void) { return camera_error; }
 void app_exchange_request(uint32_t r) { requests |= r; }
 void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
+void app_exchange_publish_motion(const MotionRequest *out) { (void)out; motion_requests++; }
+bool param_store_load(AppParam *p) { (void)p; return false; }
+void team_vision_reset(void) {}
+bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t session,
+                      VisionOutput *out, VisionPoint preview[3]) {
+    (void)frame; (void)params; (void)session; (void)out; (void)preview;
+    vision_steps++;
+    assert(!"raw image must bypass vision");
+    return false;
+}
 void app_control_init(void) {}
 void app_control_camera_ready(bool ok) { (void)ok; }
 bool side_encoder_init(void) { return true; }
@@ -56,7 +69,7 @@ static void snapshot(const char *path) {
     FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n128 160\n255\n");
     assert(fwrite(screen,1,sizeof screen,f)==sizeof screen); fclose(f);
 }
-static void assert_tune_element_row(const char *text) {
+static void assert_camera_footer(const char *text) {
     unsigned char actual[16][128];
     memcpy(actual,screen[144],sizeof actual);
     menu_font_text(144,text,1,true);
@@ -185,7 +198,7 @@ int main(void) {
     back(); assert(requests&REQ_HALT);
     requests=0; click(); hold(); /* run 5 -> track tune */
     assert(capture && requests==REQ_TRACK_TUNE);
-    assert_tune_element_row("state:- flag:-");
+    assert_camera_footer("state:- flag:-");
     s.stamp_ms++; poll(5); /* An unrelated tick does not acknowledge the request. */
     assert(capture);
     s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
@@ -193,24 +206,38 @@ int main(void) {
     unsigned tune_images=images;
     debug_view_frame(&f,&s,v,(VisionElementDebug){4,11,true});
     assert(images==tune_images+1 && red_lines==4);
-    assert_tune_element_row("state:4 flag:11");
+    assert_camera_footer("state:4 flag:11");
     s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
     debug_view_frame(&f,&s,v,(VisionElementDebug){2,3,true});
     assert(images==tune_images+1); /* Throttled preview. */
-    assert_tune_element_row("state:4 flag:11");
+    assert_camera_footer("state:4 flag:11");
     poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){2,3,true});
     assert(images==tune_images+2);
-    assert_tune_element_row("state:2 flag:3");
+    assert_camera_footer("state:2 flag:3");
     s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
     assert(!capture);
     poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});
     assert(images==tune_images+2);
-    assert_tune_element_row("state:2 flag:3");
+    assert_camera_footer("state:2 flag:3");
     back(); assert(requests&REQ_HALT);
     click(); hold(); /* track tune -> speed LPF */
     assert(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF);
     assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_SPEED_LPF_OFF));
     hold(); assert(!(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF));
+    for (unsigned j=0;j<3;j++) click(); /* speed LPF -> back -> run 30 -> image */
+    hold(); assert(capture);
+    unsigned image_count=images;
+    memset(mt9v03x_image,0,sizeof mt9v03x_image);
+    mt9v03x_image[0][29]=255; /* Outside the LCD crop. */
+    mt9v03x_finish_flag=1; camera_frame_on_done_isr();
+    now+=100; app_main_poll();
+    assert(images==image_count+1 && vision_steps==0 && motion_requests==0);
+    assert_camera_footer("G000-000 OK/K1");
+    mt9v03x_image[0][30]=180; /* Inside the LCD crop. */
+    mt9v03x_finish_flag=1; camera_frame_on_done_isr();
+    now+=100; app_main_poll();
+    assert(images==image_count+2 && vision_steps==0 && motion_requests==0);
+    assert_camera_footer("G000-180 OK/K1");
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

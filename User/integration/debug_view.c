@@ -14,6 +14,9 @@ static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms;
 static bool vofa_enabled, start_pending, tune_active;
 static VisionElementDebug tune_element;
+static uint32_t last_raw_range;
+static bool raw_image_seen;
+static uint8_t raw_min, raw_max;
 static uint32_t tune_request_session;
 static char message[27] = "U/D OK; K1 back";
 static char row_cache[10][21];
@@ -107,6 +110,8 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         note(vofa_enabled ? "VOFA speed PI" : a == MENU_RUN5 ? "run5: OPEN LOOP" : "run30: OPEN LOOP");
         break;
     case MENU_CAMERA: {
+        raw_image_seen = false;
+        last_image = board_time_ms();
         bool ok=camera_frame_set_running(true);
         app_control_camera_ready(ok);
         note(ok ? "camera starting" : "camera init failed"); break;
@@ -162,7 +167,10 @@ static void render(const ControlSnapshot *s, uint32_t now) {
                 snprintf(text,sizeof text,"camera init E%u",camera_frame_init_status()); line(4,text);
             } else line(4, "no fresh frame");
         }
-        snprintf(text, sizeof text, "M%u >back OK/K1", (unsigned)s->mode);
+        if (menu.page == MENU_IMAGE && raw_image_seen && now - last_image <= 1000)
+            snprintf(text, sizeof text, "G%03u-%03u OK/K1", (unsigned)raw_min, (unsigned)raw_max);
+        else
+            snprintf(text, sizeof text, "M%u >back OK/K1", (unsigned)s->mode);
         styled_line(9,text,1,true); return;
     }
     if (menu.page != MENU_KEYPAD) line(1, message);
@@ -244,16 +252,40 @@ void debug_view_poll(const ControlSnapshot *s) {
         last_screen = now; render(s, now);
     }
 }
+static void draw_camera(const FrameView *f, uint32_t now) {
+    last_image = now;
+    if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
+    menu_display_camera(f->pixels, f->width, f->height, f->stride);
+    for (unsigned row = 1; row < 9; row++) row_valid[row] = false;
+}
+bool debug_view_raw_image(const FrameView *f) {
+    if (menu.page != MENU_IMAGE) return false;
+    uint32_t now = board_time_ms();
+    draw_camera(f, now);
+    if (!raw_image_seen || now - last_raw_range >= 100) {
+        unsigned crop = (f->width - MENU_DISPLAY_WIDTH) / 2;
+        uint8_t min = 255, max = 0;
+        for (unsigned y = 0; y < f->height; y++) {
+            const uint8_t *row = f->pixels + y * f->stride + crop;
+            for (unsigned x = 0; x < MENU_DISPLAY_WIDTH; x++) {
+                if (row[x] < min) min = row[x];
+                if (row[x] > max) max = row[x];
+            }
+        }
+        raw_min = min; raw_max = max;
+        raw_image_seen = true;
+        last_raw_range = now;
+    }
+    return true;
+}
 void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionPoint preview[3],
                       VisionElementDebug element_debug) {
     uint32_t now = board_time_ms();
     bool tune_preview = menu.page == MENU_TUNE_IMAGE && tune_active &&
         (s->mode == RUN_TUNE_WAIT || s->mode == RUN_TUNE_RUNNING) &&
         now - last_image >= TUNE_PREVIEW_PERIOD_MS;
-    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE || tune_preview) {
-        last_image = now;
-        if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
-        menu_display_camera(f->pixels, f->width, f->height, f->stride);
+    if (menu.page == MENU_RACE_IMAGE || tune_preview) {
+        draw_camera(f, now);
         if (tune_preview && preview) {
             int crop=(f->width-MENU_DISPLAY_WIDTH)/2;
             for (unsigned i=0;i<3;i++) {
@@ -267,6 +299,5 @@ void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const Vision
             tune_element = element_debug;
             draw_tune_element();
         }
-        for(unsigned row=1;row<9;row++) row_valid[row] = false;
     }
 }
