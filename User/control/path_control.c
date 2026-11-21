@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "control_api.h"
+#include "control_tuning.h"
 #include <math.h>
 #include <string.h>
 void path_control_reset(PathControlState *s, uint32_t session) {
@@ -19,7 +20,8 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->stop_requested = v->stop_requested;
     if (!v->valid || v->session_id != s->session || v->frame_id == s->previous_frame ||
         !isfinite(v->lateral_m) || !isfinite(v->forward_m) || v->forward_m <= -VISION_FORWARD_OFFSET_M ||
-        !isfinite(v->curvature) || !isfinite(p->lateral_kp) || p->lateral_kp < 0 ||
+        !isfinite(v->curvature) || !isfinite(v->heading_rad) ||
+        !isfinite(p->lateral_kp) || p->lateral_kp < 0 ||
         !isfinite(p->lateral_kd) || p->lateral_kd < 0 ||
         !isfinite(p->lateral_tau_s) || p->lateral_tau_s < 0 ||
         !isfinite(p->speed_limit_mps) || p->speed_limit_mps <= 0 ||
@@ -37,7 +39,8 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     s->previous_ms = v->capture_ms;
     s->initialized = true;
     float speed = fminf(v->speed_cap_mps, p->speed_limit_mps);
-    o->omega_raw = -speed * v->curvature - (p->lateral_kp * e + p->lateral_kd * s->derivative);
+    o->omega_raw = -speed * v->curvature - CONTROL_PATH_HEADING_GAIN_PER_S * v->heading_rad
+                   - (p->lateral_kp * e + p->lateral_kd * s->derivative);
     o->speed_cap_mps = v->speed_cap_mps;
     o->valid = isfinite(o->omega_raw);
     return o->valid;

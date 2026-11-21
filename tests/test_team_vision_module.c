@@ -36,6 +36,7 @@ int main(void) {
                      (params.ground_h6*u+params.ground_h7*v+1);
     assert(out.lateral_m>0 && original_z>.0355f && out.forward_m>0);
     assert(fabsf(out.forward_m-(original_z-.0355f))<1e-6f && fabsf(out.curvature)<.02f);
+    float straight_heading=out.heading_rad;
     PathControlState control;
     MotionRequest request;
     path_control_reset(&control,9);
@@ -56,6 +57,27 @@ int main(void) {
     VisionOutput full={0};
     assert(vision_project_path(&params,px,py,VISION_FORWARD_OFFSET_M,&full));
     assert(fabsf(full.curvature)>.1f && fabsf(out.curvature)<.02f);
+    assert(fabsf(out.heading_rad-straight_heading)<.001f);
+
+    /* At entry the near point can be centred while the ground path
+     * already heads into the bend. An offset PD cannot see that angle. */
+    AppParam entry=params;
+    entry.ground_h0=.001f; entry.ground_h1=0; entry.ground_h2=-.094f;
+    entry.ground_h3=0; entry.ground_h4=-.002f; entry.ground_h5=.25f;
+    entry.ground_h6=0; entry.ground_h7=0;
+    const float entry_y[3]={100,80,60};
+    for (int turn=-1;turn<=1;turn++) {
+        const float entry_x[3]={94,94+20*turn,94+40*turn};
+        VisionOutput projected={.session_id=9,.frame_id=1,.speed_cap_mps=1};
+        assert(vision_project_path(&entry,entry_x,entry_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(fabsf(projected.curvature)<.001f && fabsf(projected.lateral_m)<.001f);
+        path_control_reset(&control,9);
+        assert(control_path_step(&control,&projected,&entry,&request));
+        if (turn)
+            assert(-turn*request.omega_raw>.8f);
+        else
+            assert(fabsf(request.omega_raw)<.001f);
+    }
     stripe(112);
     frame.frame_id++;
     params.ground_h2 -= .2f;

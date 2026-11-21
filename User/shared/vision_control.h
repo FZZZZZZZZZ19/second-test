@@ -13,5 +13,6 @@ typedef struct {
     bool valid, stop_requested, reset_derivative;
     /* Vehicle ground coordinates: right positive, forward positive; curvature right positive. */
     float lateral_m, forward_m, curvature; /* forward_m is signed after origin shift. */
+    float heading_rad; /* Ground direction from near to middle sample, right positive. */
 } VisionOutput;
 #endif

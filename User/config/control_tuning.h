@@ -2,6 +2,9 @@
 #define CONTROL_TUNING_H
 #include "vehicle_param.h"
 #include "vehicle_calibration.h"
+
+#define CONTROL_PATH_HEADING_GAIN_PER_S 2.0f
+
 static inline void control_param_defaults(AppParam *p) {
     p->encoder_sign[0] = CAL_ENCODER_SIGN_LEFT;
     p->encoder_sign[1] = CAL_ENCODER_SIGN_RIGHT;

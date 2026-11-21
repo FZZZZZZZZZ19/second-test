@@ -47,6 +47,8 @@ int main(void) {
     assert(!control_path_step(&state,&v,&p,&motion));
     v.curvature=2; v.lateral_m=0; v.speed_cap_mps=0;
     assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==0);
+    v.frame_id++; v.heading_rad=NAN;
+    assert(!control_path_step(&state,&v,&p,&motion) && !motion.valid);
     puts("PASS: standalone control, synthetic VisionOutput, no vision or board objects linked");
     return 0;
 }

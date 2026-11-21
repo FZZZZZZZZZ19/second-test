@@ -52,8 +52,10 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],flo
     float denominator=a*b*c;
     if(!isfinite(denominator)||denominator<1e-12f)return false;
     o->lateral_m=x[0]; o->forward_m=z[0];
+    o->heading_rad=atan2f(x[1]-x[0],z[1]-z[0]);
     /* Signed circumcircle curvature; forward then right gives right-positive. */
     o->curvature=2*((z[1]-z[0])*(x[2]-x[0])-(x[1]-x[0])*(z[2]-z[0]))/denominator;
-    o->valid=isfinite(o->curvature)&&isfinite(o->speed_cap_mps)&&o->speed_cap_mps>=0;
+    o->valid=isfinite(o->curvature)&&isfinite(o->heading_rad)&&
+             isfinite(o->speed_cap_mps)&&o->speed_cap_mps>=0;
     return o->valid;
 }
