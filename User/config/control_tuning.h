@@ -14,6 +14,7 @@ static inline void control_param_defaults(AppParam *p) {
     p->duty_limit = .25f;
     p->speed_limit_mps = APP_MAX_SPEED_MPS;
     p->tune_speed_mps = APP_TUNE_SPEED_DEFAULT_MPS;
+    p->tune_duration_s = APP_TUNE_DEFAULT_S;
     p->accel_mps2 = .3f;
     p->decel_mps2 = .6f;
     p->inner_ratio = .15f;

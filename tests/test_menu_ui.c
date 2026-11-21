@@ -15,7 +15,7 @@ static unsigned resumes, images, saves, packets;
 static bool capture, save_ok=true;
 static int camera_error;
 static unsigned char screen[160][128];
-static unsigned rgb_tiles, grid_cells;
+static unsigned rgb_tiles, grid_cells, red_lines;
 BoardIrqToken board_irq_save(void) { return 0; }
 void board_irq_restore(BoardIrqToken t) { (void)t; }
 void board_memory_barrier(void) {}
@@ -48,6 +48,7 @@ void menu_display_rgb(uint16_t x,uint16_t y,const uint16_t *p,uint16_t w,uint16_
 }
 void menu_display_line(uint16_t x,uint16_t y,uint16_t x2,uint16_t y2,uint16_t color) {
     assert(x<128 && x2<128 && y<160 && y2<160 && (x==x2 || y==y2));
+    if(color==0xf800) red_lines++;
     for(unsigned j=y;j<=y2;j++)for(unsigned i=x;i<=x2;i++) screen[j][i]=color?255:0;
 }
 static void snapshot(const char *path) {
@@ -91,15 +92,15 @@ int main(void) {
     mt9v03x_image[0][157]=23; mt9v03x_image[0][158]=255;
     mt9v03x_image[119][30]=31; mt9v03x_image[119][157]=47;
     mt9v03x_finish_flag=1; camera_frame_on_done_isr();
-    FrameView f; VisionFeatures v={0}; assert(camera_frame_acquire(&f));
+    FrameView f; VisionPoint v[3]={{30,0},{157,119},{158,60}}; assert(camera_frame_acquire(&f));
     assert(f.width==188 && f.height==120 && f.stride==188);
     assert(f.pixels[0]==11 && f.pixels[30]==17);
     assert(f.pixels[157]==23 && f.pixels[158]==255 && f.pixels[119*188+30]==31 && f.pixels[120*188-1]==59);
     mt9v03x_image[0][30]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     assert(f.pixels[0]==11 && f.pixels[30]==17); /* owned frame stays stable */
-    debug_view_frame(&f,&s,&v); assert(images==1);
+    debug_view_frame(&f,&s,v); assert(images==1);
     FrameView next_frame=f; next_frame.frame_id++;
-    poll(33); debug_view_frame(&next_frame,&s,&v);
+    poll(33); debug_view_frame(&next_frame,&s,v);
     assert(images==2); /* New frames must not be throttled to 5 Hz. */
     unsigned restarts=resumes; camera_frame_release(f.frame_id);
     assert(capture && resumes==restarts); /* no per-frame DMA reset */
@@ -182,13 +183,13 @@ int main(void) {
     s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
     assert(capture);
     unsigned tune_images=images;
-    debug_view_frame(&f,&s,&v); assert(images==tune_images+1);
+    debug_view_frame(&f,&s,v); assert(images==tune_images+1 && red_lines==4);
     s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
-    debug_view_frame(&f,&s,&v); assert(images==tune_images+1); /* Throttled preview. */
-    poll(100); debug_view_frame(&next_frame,&s,&v); assert(images==tune_images+2);
+    debug_view_frame(&f,&s,v); assert(images==tune_images+1); /* Throttled preview. */
+    poll(100); debug_view_frame(&next_frame,&s,v); assert(images==tune_images+2);
     s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
     assert(!capture);
-    poll(100); debug_view_frame(&next_frame,&s,&v); assert(images==tune_images+2);
+    poll(100); debug_view_frame(&next_frame,&s,v); assert(images==tune_images+2);
     back(); assert(requests&REQ_HALT);
     click(); hold(); /* track tune -> speed LPF */
     assert(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF);

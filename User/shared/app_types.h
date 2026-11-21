@@ -118,6 +118,7 @@ typedef struct {
     float duty[2];
     uint32_t vision_age_ms, overruns;
     bool camera_ok, config_ok;
+    uint32_t tune_remaining_ms;
 } ControlSnapshot;
 typedef struct {
     TrackState state;

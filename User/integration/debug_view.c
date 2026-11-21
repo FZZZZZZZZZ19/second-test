@@ -133,8 +133,15 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         line(7, "U/D OK K1:BACK"); return;
     }
     if (menu.page == MENU_TUNE_IMAGE) {
-        line(0, message);
-        styled_line(9,tune_active ? "OK/K1 stop/back" : "OK/K1 back",1,true);
+        if (s->mode == RUN_TUNE_RUNNING) {
+            unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
+            snprintf(text,sizeof text,"left %lu.%lus",tenths/10,tenths%10);
+            line(0,text);
+        } else line(0,message);
+        unsigned long speed=(unsigned long)(1000*fminf(g_app_param.tune_speed_mps,
+                                                      g_app_param.speed_limit_mps)+.5f);
+        snprintf(text,sizeof text,"%lu.%03lum/s K1",speed/1000,speed%1000);
+        styled_line(9,text,1,true);
         return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
@@ -197,11 +204,7 @@ void debug_view_poll(const ControlSnapshot *s) {
         menu.page = MENU_MAIN; menu.selected = 1; note("stop before para");
     }
     if (tune_active && s->session_id != tune_request_session) {
-        if (s->mode == RUN_TUNE_RUNNING) {
-            snprintf(message, sizeof message, "track tune %lus",
-                     (unsigned long)(APP_TUNE_RUN_MS / 1000u));
-        }
-        else if (s->mode != RUN_TUNE_WAIT) {
+        if (s->mode != RUN_TUNE_RUNNING && s->mode != RUN_TUNE_WAIT) {
             tune_active = false;
             (void)camera_frame_set_running(false);
             app_control_camera_ready(false);
@@ -230,8 +233,7 @@ void debug_view_poll(const ControlSnapshot *s) {
         last_screen = now; render(s, now);
     }
 }
-void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionFeatures *v) {
-    (void)s; (void)v;
+void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionPoint preview[3]) {
     uint32_t now = board_time_ms();
     bool tune_preview = menu.page == MENU_TUNE_IMAGE && tune_active &&
         (s->mode == RUN_TUNE_WAIT || s->mode == RUN_TUNE_RUNNING) &&
@@ -240,6 +242,15 @@ void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const Vision
         last_image = now;
         if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
         menu_display_camera(f->pixels, f->width, f->height, f->stride);
+        if (tune_preview && preview) {
+            int crop=(f->width-MENU_DISPLAY_WIDTH)/2;
+            for (unsigned i=0;i<3;i++) {
+                int x=preview[i].x-crop, y=preview[i].y+16;
+                if (x<0 || x>=128 || y>=136) continue;
+                menu_display_line(x>1?x-2:0,y,x<126?x+2:127,y,0xf800);
+                menu_display_line(x,y>17?y-2:16,x,y<134?y+2:135,0xf800);
+            }
+        }
         for(unsigned row=1;row<9;row++) row_valid[row] = false;
     }
 }

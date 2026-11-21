@@ -46,7 +46,8 @@ static bool validate_param(const AppParam *p, bool allow_missing) {
         p->center_x_px >= APP_WIDTH)
         return false;
     if (p->debug_speed_mps < 0 || p->debug_speed_mps > APP_MAX_SPEED_MPS ||
-        p->tune_speed_mps <= 0 || p->tune_speed_mps > APP_MAX_SPEED_MPS)
+        p->tune_speed_mps <= 0 || p->tune_speed_mps > APP_MAX_SPEED_MPS ||
+        p->tune_duration_s < APP_TUNE_MIN_S || p->tune_duration_s > APP_TUNE_MAX_S)
         return false;
     if (p->speed_normal < 0 || p->speed_corner < 0 || p->speed_element < 0 ||
         p->speed_normal > APP_MAX_SPEED_MPS || p->speed_corner > APP_MAX_SPEED_MPS ||
@@ -92,7 +93,7 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 12); /* Configurable track tune speed. */
+    put32(out + 4, 13); /* Configurable track tune duration. */
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
@@ -128,7 +129,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     uint32_t schema = get32(in + 4);
-    if (schema != 2 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12)
+    if (schema != 2 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13)
         return false;
     AppParam candidate;
     memset(&candidate, 0, sizeof(candidate));
@@ -142,6 +143,10 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     APP_FLOAT_FIELDS(DECODE)
 #undef DECODE
+    if (schema < 13) {
+        candidate.tune_duration_s = APP_TUNE_DEFAULT_S;
+        n--;
+    }
     if (schema < 12) {
         candidate.tune_speed_mps = APP_TUNE_SPEED_DEFAULT_MPS;
         n--;

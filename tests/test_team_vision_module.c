@@ -26,7 +26,7 @@ int main(void) {
     VisionOutput out;
     stripe(112);
     team_vision_reset();
-    assert(team_vision_step(&frame,&params,9,&out));
+    assert(team_vision_step(&frame,&params,9,&out,NULL));
     assert(pixels[0][112]==220 && pixels[0][0]==15);
     assert(out.session_id==9 && out.frame_id==1 && out.capture_ms==100);
     assert(out.lateral_m>0 && out.forward_m>0 && fabsf(out.curvature)<.02f);
@@ -37,16 +37,16 @@ int main(void) {
     assert(request.omega_raw<0 && request.speed_cap_mps==params.speed_normal);
     frame.frame_id++;
     params.ground_h2 -= .2f;
-    assert(team_vision_step(&frame,&params,9,&out) && out.lateral_m<0);
+    assert(team_vision_step(&frame,&params,9,&out,NULL) && out.lateral_m<0);
     memset(pixels,0,sizeof pixels);
     frame.frame_id++;
-    assert(!team_vision_step(&frame,&params,9,&out) && !out.valid && out.frame_id==3);
+    assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid && out.frame_id==3);
     assert(!control_path_step(&control,&out,&params,&request) && !request.valid);
     stripe(112);
     params.ground_h0=NAN;
-    assert(!team_vision_step(&frame,&params,9,&out) && !out.valid);
+    assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid);
     frame.stride=128;
-    assert(!team_vision_step(&frame,&params,9,&out));
+    assert(!team_vision_step(&frame,&params,9,&out,NULL));
     puts("PASS: teammate vision to real steering, config projection, invalid frame rejection");
     return 0;
 }

@@ -31,6 +31,7 @@ void app_control_init(void) {
 static void fault(StopReason r) {
     status.mode = RUN_FAULT;
     status.reason = r;
+    status.tune_remaining_ms = 0;
     motor_brake_zero();
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
@@ -114,13 +115,15 @@ void app_control_tick_isr(void) {
         if (status.mode == RUN_READY || status.mode == RUN_STATIC_DEBUG)
             memset(&good, 0, sizeof(good));
     }
+    status.tune_remaining_ms = 0;
     if (status.mode == RUN_TUNE_WAIT || status.mode == RUN_TUNE_RUNNING) {
+        uint32_t duration_ms = (uint32_t)(g_app_param.tune_duration_s * 1000.0f + .5f);
         bool tune_fresh = fresh && good.session_id == status.session_id &&
                           status.vision_age_ms <= APP_TUNE_FRAME_AGE_MS;
         bool current = incoming.session_id == status.session_id;
         bool usable = current && incoming.valid && incoming.confidence >= 40;
         if ((requests & REQ_STOP) || (current && incoming.stop_requested) ||
-            (status.mode == RUN_TUNE_RUNNING && now - tune_since >= APP_TUNE_RUN_MS)) {
+            (status.mode == RUN_TUNE_RUNNING && now - tune_since >= duration_ms)) {
             status.mode = RUN_STATIC_DEBUG;
             status.reason = (requests & REQ_STOP) ? STOP_LOCAL :
                             (current && incoming.stop_requested) ? STOP_TRACK : STOP_TUNE_DONE;
@@ -137,6 +140,8 @@ void app_control_tick_isr(void) {
                 tune_since = now;
             }
         } else if (!tune_fresh || !usable) fault(STOP_VISION);
+        if (status.mode == RUN_TUNE_RUNNING)
+            status.tune_remaining_ms = duration_ms - (now - tune_since);
     }
     if (status.mode == RUN_DUTY_DEBUG) {
         /* Explicit open-loop diagnostic command, independent of racing duty_limit. */

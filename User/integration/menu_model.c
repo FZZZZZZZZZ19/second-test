@@ -32,10 +32,11 @@ static const Field fields[] = {
     F("corner m/s", speed_corner, 0, APP_MAX_SPEED_MPS),
     F("element m/s", speed_element, 0, APP_MAX_SPEED_MPS),
     F("tune speed m/s", tune_speed_mps, .001f, APP_MAX_SPEED_MPS),
-    F("accel m/s2", accel_mps2, .01f, 5.0f)
+    F("accel m/s2", accel_mps2, .01f, 5.0f),
+    F("tune time s", tune_duration_s, APP_TUNE_MIN_S, APP_TUNE_MAX_S)
 #undef H
 };
-static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,36,13,14};
+static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,37,36,13,14};
 static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","-",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {

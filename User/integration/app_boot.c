@@ -54,7 +54,8 @@ void app_main_poll(void) {
     FrameView frame;
     if (camera_frame_acquire(&frame)) {
         VisionOutput observation;
-        (void)team_vision_step(&frame, &g_app_param, snapshot.session_id, &observation);
+        VisionPoint preview[3];
+        (void)team_vision_step(&frame, &g_app_param, snapshot.session_id, &observation, preview);
         if (snapshot.mode != RUN_RUNNING && snapshot.mode != RUN_TUNE_RUNNING)
             team_vision_reset();
         if ((snapshot.mode == RUN_TUNE_WAIT || snapshot.mode == RUN_TUNE_RUNNING) &&
@@ -65,7 +66,7 @@ void app_main_poll(void) {
         MotionRequest request;
         (void)control_path_step(&path, &observation, &g_app_param, &request);
         app_exchange_publish_motion(&request);
-        debug_view_frame(&frame, &snapshot, NULL);
+        debug_view_frame(&frame, &snapshot, preview);
         camera_frame_release(frame.frame_id);
     }
     debug_view_poll(&snapshot);

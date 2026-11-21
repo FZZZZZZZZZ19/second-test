@@ -29,6 +29,7 @@ static void publish_tune_frame(void) {
 }
 static void check_tune(void) {
     feedback.valid=true;
+    g_app_param.tune_duration_s=4.5f;
     g_app_param.tune_speed_mps=.65f;
     app_control_camera_ready(true);
     publish_tune_frame(); /* A valid frame from before the request cannot start the car. */
@@ -37,8 +38,8 @@ static void check_tune(void) {
     tick(0);
     assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
     publish_tune_frame(); tick(0);
-    assert(output.mode==RUN_TUNE_RUNNING);
-    for (unsigned i=1;i<APP_TUNE_RUN_MS/5;i++) {
+    assert(output.mode==RUN_TUNE_RUNNING && output.tune_remaining_ms==4500);
+    for (unsigned i=1;i<900;i++) {
         publish_tune_frame(); tick(0);
         assert(output.mode==RUN_TUNE_RUNNING && output.targets.model_v_mps<=g_app_param.tune_speed_mps+.001f);
     }

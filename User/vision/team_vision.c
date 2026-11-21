@@ -2,7 +2,9 @@
 #include "vision_api.h"
 
 bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t session,
-                      VisionOutput *out) {
+                      VisionOutput *out, VisionPoint preview[3]) {
+    if (preview)
+        for (unsigned i=0;i<3;i++) preview[i]=(VisionPoint){255,255};
     if (!out) return false;
     *out=(VisionOutput){.session_id=session,.state=TRACK_DEGRADED};
     if (!frame || !params) return false;
@@ -34,6 +36,8 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
     for (unsigned i=0;i<3;i++) {
         u[i]=points[i].x;
         v[i]=points[i].y;
+        if (preview && u[i]>=0 && u[i]<APP_WIDTH && v[i]>=0 && v[i]<APP_HEIGHT)
+            preview[i]=(VisionPoint){points[i].x,points[i].y};
     }
     if (!vision_project_path(params,u,v,out)) {
         out->state=TRACK_DEGRADED;
