@@ -53,11 +53,6 @@ void app_main_poll(void) {
     }
     FrameView frame;
     if (camera_frame_acquire(&frame)) {
-        if (debug_view_raw_image(&frame)) {
-            camera_frame_release(frame.frame_id);
-            debug_view_poll(&snapshot);
-            return;
-        }
         VisionOutput observation;
         VisionPoint preview[3];
         (void)team_vision_step(&frame, &g_app_param, snapshot.session_id, &observation, preview);

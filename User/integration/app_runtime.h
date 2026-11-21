@@ -29,7 +29,6 @@ bool camera_frame_acquire(FrameView *f);
 void camera_frame_release(uint32_t frame_id);
 void debug_view_init(void);
 void debug_view_poll(const ControlSnapshot *s);
-bool debug_view_raw_image(const FrameView *f);
 void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionPoint preview[3],
                       VisionElementDebug element_debug);
 #endif
