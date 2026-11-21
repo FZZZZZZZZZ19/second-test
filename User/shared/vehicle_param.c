@@ -9,6 +9,7 @@
 enum { PARAM_FLOAT_COUNT = 0 APP_FLOAT_FIELDS(PARAM_COUNT) };
 #undef PARAM_COUNT
 _Static_assert(32 + 4 * PARAM_FLOAT_COUNT <= 248, "parameter payload exceeds record");
+enum { PARAM_SCHEMA = 14 };
 void param_defaults(AppParam *p) {
     memset(p, 0, sizeof(*p));
     vision_param_defaults(p);
@@ -22,6 +23,9 @@ static bool validate_param(const AppParam *p, bool allow_missing) {
         return false;
     APP_FLOAT_FIELDS(CHECK_FINITE)
 #undef CHECK_FINITE
+    if (!isfinite(p->heading_gain_per_s) || p->heading_gain_per_s < 0 ||
+        p->heading_gain_per_s > APP_HEADING_GAIN_MAX)
+        return false;
     if ((!allow_missing || p->wheel_left_m != 0) && (p->wheel_left_m < .01f || p->wheel_left_m > .3f)) return false;
     if ((!allow_missing || p->wheel_right_m != 0) && (p->wheel_right_m < .01f || p->wheel_right_m > .3f)) return false;
     if ((!allow_missing || p->track_m != 0) && (p->track_m < .03f || p->track_m > .6f)) return false;
@@ -93,13 +97,17 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
     _Static_assert(sizeof(float) == 4, "IEEE float32 required");
     memset(out, 0xff, APP_PARAM_RECORD_BYTES);
     put32(out, 0x53545631u);
-    put32(out + 4, 13); /* Configurable track tune duration. */
+    put32(out + 4, PARAM_SCHEMA);
     put32(out + 8, seq);
     put32(out + 16, p->calibration_mask);
     put32(out + 20, p->flags);
-    put32(out + 24, p->threshold);
-    put32(out + 28, (p->encoder_sign[0] < 0 ? 1u : 0u) | (p->encoder_sign[1] < 0 ? 2u : 0u));
-    unsigned offset = 32, n = 0;
+    uint32_t signs = (p->encoder_sign[0] < 0 ? 1u : 0u) | (p->encoder_sign[1] < 0 ? 2u : 0u);
+    /* Pack the threshold and two sign bits to free one word for the new gain. */
+    put32(out + 24, p->threshold | (signs << 8));
+    uint32_t heading_bits;
+    memcpy(&heading_bits, &p->heading_gain_per_s, sizeof heading_bits);
+    put32(out + 28, heading_bits);
+    unsigned offset = 32, n = 1;
 #define ENCODE(nm)                                                                                 \
     {                                                                                              \
         uint32_t bits;                                                                             \
@@ -129,7 +137,7 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
         get32(in + 252) != 0x434F4D54u || get32(in + 248) != app_crc32(in, 248))
         return false;
     uint32_t schema = get32(in + 4);
-    if (schema != 2 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13)
+    if (schema != 2 && (schema < 4 || schema > PARAM_SCHEMA))
         return false;
     AppParam candidate;
     memset(&candidate, 0, sizeof(candidate));
@@ -143,6 +151,15 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     }
     APP_FLOAT_FIELDS(DECODE)
 #undef DECODE
+    uint32_t threshold = get32(in + 24);
+    uint32_t signs = get32(in + 28);
+    candidate.heading_gain_per_s = APP_HEADING_GAIN_DEFAULT;
+    if (schema == PARAM_SCHEMA) {
+        memcpy(&candidate.heading_gain_per_s, &signs, sizeof signs);
+        signs = threshold >> 8;
+        threshold &= 0xffu;
+        n++;
+    }
     if (schema < 13) {
         candidate.tune_duration_s = APP_TUNE_DEFAULT_S;
         n--;
@@ -157,13 +174,13 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     if (schema == 2) {
         candidate.debug_speed_mps = 0; n--;
     }
-    if (get32(in + 12) != n || get32(in + 24) > 255 || get32(in + 28) > 3)
+    if (get32(in + 12) != n || threshold > 255 || signs > 3)
         return false;
     candidate.calibration_mask = get32(in + 16);
     candidate.flags = get32(in + 20);
-    candidate.threshold = (uint8_t)get32(in + 24);
-    candidate.encoder_sign[0] = (get32(in + 28) & 1) ? -1 : 1;
-    candidate.encoder_sign[1] = (get32(in + 28) & 2) ? -1 : 1;
+    candidate.threshold = (uint8_t)threshold;
+    candidate.encoder_sign[0] = (signs & 1) ? -1 : 1;
+    candidate.encoder_sign[1] = (signs & 2) ? -1 : 1;
     if (schema == 6) {
         if (!isfinite(candidate.center_x_px) || candidate.center_x_px < 0 ||
             candidate.center_x_px >= 128)

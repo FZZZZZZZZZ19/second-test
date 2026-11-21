@@ -1393,6 +1393,7 @@ void team_vision_reset(void)
 
 bool team_vision_points(const FrameView *frame, TeamPixel points[3], TeamPixel *near_mid, int *element, int *stage)
 {
+    *element = *stage = -1;
     if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
         frame->height != APP_HEIGHT || frame->stride < frame->width)
         return false;
@@ -1411,12 +1412,13 @@ bool team_vision_points(const FrameView *frame, TeamPixel points[3], TeamPixel *
     analyze();
     reset_target_line();
     update_info();
-    if (errors || !match_target_line(offset_w) || target_statics < 3) return false;
+    if (errors) return false;
+    *element=state;
+    *stage=flag;
+    if (!match_target_line(offset_w) || target_statics < 3) return false;
     pred_points(target_dist,near_mid);
     points[0]=(TeamPixel){(lx+rx)/2,(ly+ry)/2};
     points[1]=(TeamPixel){X1,Y1};
     points[2]=(TeamPixel){X2,Y2};
-    *element=state;
-    *stage=flag;
     return true;
 }

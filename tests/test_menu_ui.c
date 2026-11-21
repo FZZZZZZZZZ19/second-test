@@ -1,6 +1,7 @@
 #include "app_runtime.h"
 #include "maintenance.h"
 #include "menu_display.h"
+#include "menu_font.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
@@ -55,6 +56,12 @@ static void snapshot(const char *path) {
     FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n128 160\n255\n");
     assert(fwrite(screen,1,sizeof screen,f)==sizeof screen); fclose(f);
 }
+static void assert_tune_element_row(const char *text) {
+    unsigned char actual[16][128];
+    memcpy(actual,screen[144],sizeof actual);
+    menu_font_text(144,text,1,true);
+    assert(memcmp(actual,screen[144],sizeof actual)==0);
+}
 void tft180_show_string(uint16_t x,uint16_t y,const char *text) { assert(x<160 && y<128 && strlen(text)<=26); }
 void menu_display_camera(const uint8_t *p,uint16_t w,uint16_t h,uint16_t stride) {
     assert(p && w==APP_WIDTH && h==APP_HEIGHT && stride==APP_WIDTH); images++;
@@ -98,9 +105,9 @@ int main(void) {
     assert(f.pixels[157]==23 && f.pixels[158]==255 && f.pixels[119*188+30]==31 && f.pixels[120*188-1]==59);
     mt9v03x_image[0][30]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     assert(f.pixels[0]==11 && f.pixels[30]==17); /* owned frame stays stable */
-    debug_view_frame(&f,&s,v); assert(images==1);
+    debug_view_frame(&f,&s,v,(VisionElementDebug){0}); assert(images==1);
     FrameView next_frame=f; next_frame.frame_id++;
-    poll(33); debug_view_frame(&next_frame,&s,v);
+    poll(33); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});
     assert(images==2); /* New frames must not be throttled to 5 Hz. */
     unsigned restarts=resumes; camera_frame_release(f.frame_id);
     assert(capture && resumes==restarts); /* no per-frame DMA reset */
@@ -178,18 +185,27 @@ int main(void) {
     back(); assert(requests&REQ_HALT);
     requests=0; click(); hold(); /* run 5 -> track tune */
     assert(capture && requests==REQ_TRACK_TUNE);
+    assert_tune_element_row("state:- flag:-");
     s.stamp_ms++; poll(5); /* An unrelated tick does not acknowledge the request. */
     assert(capture);
     s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
     assert(capture);
     unsigned tune_images=images;
-    debug_view_frame(&f,&s,v); assert(images==tune_images+1 && red_lines==4);
+    debug_view_frame(&f,&s,v,(VisionElementDebug){4,11,true});
+    assert(images==tune_images+1 && red_lines==4);
+    assert_tune_element_row("state:4 flag:11");
     s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
-    debug_view_frame(&f,&s,v); assert(images==tune_images+1); /* Throttled preview. */
-    poll(100); debug_view_frame(&next_frame,&s,v); assert(images==tune_images+2);
+    debug_view_frame(&f,&s,v,(VisionElementDebug){2,3,true});
+    assert(images==tune_images+1); /* Throttled preview. */
+    assert_tune_element_row("state:4 flag:11");
+    poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){2,3,true});
+    assert(images==tune_images+2);
+    assert_tune_element_row("state:2 flag:3");
     s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
     assert(!capture);
-    poll(100); debug_view_frame(&next_frame,&s,v); assert(images==tune_images+2);
+    poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});
+    assert(images==tune_images+2);
+    assert_tune_element_row("state:2 flag:3");
     back(); assert(requests&REQ_HALT);
     click(); hold(); /* track tune -> speed LPF */
     assert(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF);

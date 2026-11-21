@@ -3,8 +3,6 @@
 #include "vehicle_param.h"
 #include "vehicle_calibration.h"
 
-#define CONTROL_PATH_HEADING_GAIN_PER_S 2.0f
-
 static inline void control_param_defaults(AppParam *p) {
     p->encoder_sign[0] = CAL_ENCODER_SIGN_LEFT;
     p->encoder_sign[1] = CAL_ENCODER_SIGN_RIGHT;
@@ -24,6 +22,7 @@ static inline void control_param_defaults(AppParam *p) {
     p->lateral_kp = 0.0f; /* rad/(s*m), tune on vehicle */
     p->lateral_kd = 0.0f; /* rad/m, tune on vehicle */
     p->lateral_tau_s = .05f;
+    p->heading_gain_per_s = APP_HEADING_GAIN_DEFAULT;
     p->speed_normal = .2f;
     p->speed_corner = .12f;
     p->speed_element = .1f;

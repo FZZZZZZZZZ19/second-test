@@ -25,6 +25,7 @@ typedef struct {
 #define DECL_FIELD(n) float n;
     APP_FLOAT_FIELDS(DECL_FIELD)
 #undef DECL_FIELD
+    float heading_gain_per_s; /* Stored separately from the legacy float payload. */
     uint32_t calibration_mask;
     uint32_t flags; /* bit0: verified race-element profile, bit1: capture timing validated, bit2: speed LPF bypass */
     uint8_t threshold;

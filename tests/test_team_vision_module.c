@@ -29,6 +29,7 @@ int main(void) {
     team_vision_reset();
     VisionPoint preview[3];
     assert(team_vision_step(&frame,&params,9,&out,preview));
+    assert(out.element_debug.available && out.element_debug.state==0 && out.element_debug.flag==0);
     assert(pixels[0][112]==220 && pixels[0][0]==15);
     assert(out.session_id==9 && out.frame_id==1 && out.capture_ms==100);
     float u=preview[0].x, v=preview[0].y;
@@ -85,10 +86,12 @@ int main(void) {
     memset(pixels,0,sizeof pixels);
     frame.frame_id++;
     assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid && out.frame_id==4);
+    assert(!out.element_debug.available);
     assert(!control_path_step(&control,&out,&params,&request) && !request.valid);
     stripe(112);
     params.ground_h0=NAN;
     assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid);
+    assert(out.element_debug.available); /* Classification still exists when ground projection fails. */
     frame.stride=128;
     assert(!team_vision_step(&frame,&params,9,&out,NULL));
     puts("PASS: teammate vision to real steering, config projection, invalid frame rejection");

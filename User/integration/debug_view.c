@@ -13,6 +13,7 @@ static MenuModel menu;
 static MenuPage drawn_page;
 static uint32_t last_screen, last_image, last_vofa, start_ms;
 static bool vofa_enabled, start_pending, tune_active;
+static VisionElementDebug tune_element;
 static uint32_t tune_request_session;
 static char message[27] = "U/D OK; K1 back";
 static char row_cache[10][21];
@@ -30,6 +31,15 @@ static void styled_line(unsigned row, const char *text, unsigned scale, bool sel
     strcpy(row_cache[row], clipped); row_style[row] = style; row_valid[row] = true;
 }
 static void line(unsigned row, const char *text) { styled_line(row,text,1,false); }
+static void draw_tune_element(void) {
+    char text[24];
+    if (tune_element.available)
+        snprintf(text, sizeof text, "state:%u flag:%u",
+                 (unsigned)tune_element.state, (unsigned)tune_element.flag);
+    else
+        snprintf(text, sizeof text, "state:- flag:-");
+    styled_line(9,text,1,true);
+}
 static void note(const char *text) { snprintf(message, sizeof message, "%.26s", text); }
 static void stop_all(const ControlSnapshot *s) {
     start_pending = false; vofa_enabled = false; tune_active = false;
@@ -73,6 +83,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         start_pending = true; start_ms = board_time_ms();
         note("checking start..."); break;
     case MENU_TRACK_TUNE:
+        tune_element = (VisionElementDebug){0};
         if (s->mode != RUN_STATIC_DEBUG) { note("stop first"); break; }
         if (!camera_frame_set_running(true)) { note("camera failed"); break; }
         app_control_camera_ready(true);
@@ -135,13 +146,13 @@ static void render(const ControlSnapshot *s, uint32_t now) {
     if (menu.page == MENU_TUNE_IMAGE) {
         if (s->mode == RUN_TUNE_RUNNING) {
             unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
-            snprintf(text,sizeof text,"left %lu.%lus",tenths/10,tenths%10);
+            unsigned long speed=(unsigned long)(100*fminf(g_app_param.tune_speed_mps,
+                                                         g_app_param.speed_limit_mps)+.5f);
+            snprintf(text,sizeof text,"%lu.%lus %lu.%02lum/s",
+                     tenths/10,tenths%10,speed/100,speed%100);
             line(0,text);
         } else line(0,message);
-        unsigned long speed=(unsigned long)(1000*fminf(g_app_param.tune_speed_mps,
-                                                      g_app_param.speed_limit_mps)+.5f);
-        snprintf(text,sizeof text,"%lu.%03lum/s K1",speed/1000,speed%1000);
-        styled_line(9,text,1,true);
+        draw_tune_element();
         return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
@@ -233,7 +244,8 @@ void debug_view_poll(const ControlSnapshot *s) {
         last_screen = now; render(s, now);
     }
 }
-void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionPoint preview[3]) {
+void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const VisionPoint preview[3],
+                      VisionElementDebug element_debug) {
     uint32_t now = board_time_ms();
     bool tune_preview = menu.page == MENU_TUNE_IMAGE && tune_active &&
         (s->mode == RUN_TUNE_WAIT || s->mode == RUN_TUNE_RUNNING) &&
@@ -250,6 +262,10 @@ void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const Vision
                 menu_display_line(x>1?x-2:0,y,x<126?x+2:127,y,0xf800);
                 menu_display_line(x,y>17?y-2:16,x,y<134?y+2:135,0xf800);
             }
+        }
+        if (tune_preview) {
+            tune_element = element_debug;
+            draw_tune_element();
         }
         for(unsigned row=1;row<9;row++) row_valid[row] = false;
     }

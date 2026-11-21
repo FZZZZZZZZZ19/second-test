@@ -8,6 +8,14 @@
 #include <stdio.h>
 #include <string.h>
 static void put32(uint8_t *p, uint32_t x) { for(unsigned i=0;i<4;i++) p[i]=(uint8_t)(x>>(i*8)); }
+static void legacy_header(uint8_t *record, uint32_t schema, uint32_t count) {
+    assert(record[4]==14);
+    put32(record+28,record[25]);
+    put32(record+24,record[24]);
+    put32(record+4,schema);
+    put32(record+12,count);
+    put32(record+248,app_crc32(record,248));
+}
 static void pick(MenuModel *m,const char *label) {
     for(unsigned i=0;i<menu_count(m);i++) if(!strcmp(menu_label(m,i),label)) { m->selected=i;return; }
     assert(!"missing keypad label");
@@ -41,7 +49,7 @@ int main(void) {
     strcpy(m.input,"nan"); assert(!menu_apply_value(&m,&p));
     strcpy(m.input,"10001"); assert(!menu_apply_value(&m,&p));
     pick(&m,"BACK"); menu_confirm(&m); assert(m.page==MENU_VISION);
-    m.selected=4; menu_confirm(&m); assert(m.page==MENU_PARA);
+    pick(&m,"back"); menu_confirm(&m); assert(m.page==MENU_PARA);
     m.selected=1; menu_confirm(&m); assert(m.page==MENU_PARAMS);
     menu_confirm(&m); strcpy(m.input,".5"); assert(menu_apply_value(&m,&p));
     assert(p.kp_left==.5f && p.kp_right==.5f);
@@ -166,19 +174,19 @@ int main(void) {
     assert(q.body_length_m==.3f && q.body_width_m==.2f);
     uint8_t schema5[APP_PARAM_RECORD_BYTES]; memcpy(schema5,record,sizeof schema5);
     float schema5_center=93.5f; memcpy(schema5+32+23*4,&schema5_center,4);
-    put32(schema5+4,5); put32(schema5+12,52); put32(schema5+248,app_crc32(schema5,248));
+    legacy_header(schema5,5,52);
     assert(param_decode(schema5,&q,&seq) && q.center_x_px==93.5f);
     assert(q.body_length_m==.3f && q.body_width_m==.2f && q.debug_speed_mps==.2f);
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h2==CAL_GROUND_H2);
     uint8_t cropped_record[APP_PARAM_RECORD_BYTES];
     p.center_x_px=62.5f; p.ground_h2=-.6f;
     assert(param_encode(&p,8,cropped_record));
-    put32(cropped_record+4,6); put32(cropped_record+12,52); put32(cropped_record+248,app_crc32(cropped_record,248));
+    legacy_header(cropped_record,6,52);
     assert(param_decode(cropped_record,&q,&seq) && q.center_x_px==92.5f);
     assert(q.ground_h2==CAL_GROUND_H2 && q.debug_speed_mps==.2f && q.track_m==p.track_m);
     uint8_t old_signs[APP_PARAM_RECORD_BYTES];
     memcpy(old_signs,record,sizeof old_signs);
-    put32(old_signs+4,7); put32(old_signs+12,52); put32(old_signs+28,0);
+    legacy_header(old_signs,7,52); put32(old_signs+28,0);
     put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq));
     assert(q.encoder_sign[0]==-1 && q.encoder_sign[1]==1);
@@ -203,14 +211,13 @@ int main(void) {
     strcpy(speed_edit.input,"5.01"); assert(!menu_apply_value(&speed_edit,&speed_range));
     speed_range.debug_speed_mps=.2f; speed_range.speed_limit_mps=.4f;
     assert(param_encode(&speed_range,20,old_signs));
-    put32(old_signs+4,10); put32(old_signs+12,52); put32(old_signs+248,app_crc32(old_signs,248));
+    legacy_header(old_signs,10,52);
     assert(param_decode(old_signs,&q,&seq));
     assert(q.speed_limit_mps==5 && q.debug_speed_mps==.2f);
     q.speed_limit_mps=2;
     assert(param_encode(&q,21,old_signs) && param_decode(old_signs,&q,&seq));
     assert(q.speed_limit_mps==2); /* later saved limits remain configurable */
-    put32(old_signs+4,11); put32(old_signs+12,52);
-    put32(old_signs+248,app_crc32(old_signs,248));
+    legacy_header(old_signs,11,52);
     assert(param_decode(old_signs,&q,&seq) && q.tune_speed_mps==APP_TUNE_SPEED_DEFAULT_MPS);
     assert(q.speed_limit_mps==2);
     MenuModel tune_menu; menu_init(&tune_menu); tune_menu.page=MENU_PARAMS;
@@ -229,8 +236,7 @@ int main(void) {
     strcpy(accel_menu.input,"0.8"); assert(menu_apply_value(&accel_menu,&q));
     assert(param_encode(&q,23,old_signs) && param_decode(old_signs,&q,&seq));
     assert(fabsf(q.accel_mps2-.8f)<.0001f && fabsf(q.decel_mps2-.6f)<.0001f);
-    put32(old_signs+4,12); put32(old_signs+12,53);
-    put32(old_signs+248,app_crc32(old_signs,248));
+    legacy_header(old_signs,12,53);
     assert(param_decode(old_signs,&q,&seq) && q.tune_duration_s==10);
     MenuModel time_menu; menu_init(&time_menu); time_menu.page=MENU_PARAMS;
     time_menu.selected=13;
@@ -240,16 +246,27 @@ int main(void) {
     strcpy(time_menu.input,"4.5"); assert(menu_apply_value(&time_menu,&q));
     assert(param_encode(&q,24,old_signs) && param_decode(old_signs,&q,&seq));
     assert(q.tune_duration_s==4.5f && fabsf(q.tune_speed_mps-.65f)<.0001f);
+    legacy_header(old_signs,13,54);
+    assert(param_decode(old_signs,&q,&seq));
+    assert(q.heading_gain_per_s==2 && q.tune_duration_s==4.5f && q.accel_mps2==.8f);
+    MenuModel heading_menu; menu_init(&heading_menu); heading_menu.page=MENU_VISION;
+    pick(&heading_menu,"heading gain"); menu_confirm(&heading_menu);
+    strcpy(heading_menu.input,"-1"); assert(!menu_apply_value(&heading_menu,&q));
+    strcpy(heading_menu.input,"20.001"); assert(!menu_apply_value(&heading_menu,&q));
+    strcpy(heading_menu.input,"3.25"); assert(menu_apply_value(&heading_menu,&q));
+    q.threshold=179; q.encoder_sign[0]=1; q.encoder_sign[1]=-1;
+    assert(param_encode(&q,25,old_signs) && param_decode(old_signs,&q,&seq));
+    assert(q.heading_gain_per_s==3.25f && q.tune_duration_s==4.5f && seq==25);
+    assert(q.threshold==179 && q.encoder_sign[0]==1 && q.encoder_sign[1]==-1);
     float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
-    put32(record+4,4); put32(record+12,50); memset(record+232,255,8);
-    put32(record+248,app_crc32(record,248));
+    memset(record+232,255,8); legacy_header(record,4,50);
     assert(param_decode(record,&q,&seq) && q.body_length_m==0 && q.body_width_m==0 && q.debug_speed_mps==.2f);
     assert(q.kp_left==p.kp_left && q.ki_right==p.ki_right && q.track_m==p.track_m);
     assert(fabsf(q.center_x_px-93.5f)<1e-6f);
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h7==CAL_GROUND_H7);
     uint8_t migrated[APP_PARAM_RECORD_BYTES];
     q.center_x_px=61; q.ground_h2=-.42f;
-    assert(param_encode(&q,9,migrated) && migrated[4]==13);
+    assert(param_encode(&q,9,migrated) && migrated[4]==14);
     AppParam again; uint32_t migrated_seq;
     assert(param_decode(migrated,&again,&migrated_seq));
     assert(again.center_x_px==61 && again.ground_h2==-.42f && migrated_seq==9);

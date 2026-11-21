@@ -12,9 +12,9 @@ V1.50.19按实测反馈调整保存阈值，两侧速度绝对值均小于0.5m/s
 
 V1.50.18修复VOFA target保存。保存检查STATIC模式、零PWM及反馈速度绝对值小于0.5m/s，允许停车时原始计数抖动，已移除额外500ms等待。VOFA只启动速度闭环，要求参数合法、编码器反馈有效和目标大于0。独立run 30提供30%开环调试。比赛start的完整标定检查继续生效。
 
-当前开发基线为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，本地联调版本为 V1.6.12。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向，即使近点居中也能跟随已经转向的近段路径。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
+当前开发基线为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，本地联调版本为 V1.6.13。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向，即使近点居中也能跟随已经转向的近段路径。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
 
-小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。短跑页显示摄像头画面、近中远三个红色标记、剩余秒数和限速后的目标速度。方向增益在 `para → vision → omega Kp / omega Kd` 设置。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调方向-kpkd-v1611)
+小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。预览顶部显示倒计时和限速后的目标速度，底部显示同一帧的视觉原始 `state`、`flag`，画面保留三个红色标记。`para → vision → heading gain` 调近段方向的转向强度，默认 2.0 s⁻¹，可设 0～20，按 SAVE 后掉电保留。横向偏差仍用同页的 `omega Kp / omega Kd` 调节。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调转向)
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 
@@ -65,7 +65,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 上电主菜单为 `start / para / control`。普通菜单用五向上/下选择、中键点按确认，KEY1点按返回上一级；数字键盘用四向移动、中键确认，增加SAVE直接保存。start自动准备并等待新鲜视觉结果后巡线，同时显示当前灰度画面；para分视觉、电控和hardware硬件参数，数字键盘SAVE保存，para也可save to flash保存，reset后继续加载。control提供run 30、image、vofa、VOFA目标速度和stop。stop停止电机和图像采集，屏幕继续工作。
 
-重点增益为视觉 `lateral_kp / lateral_kd` 和电控 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R)同时修改两侧，另外保留单侧入口。Flash写schema=9，兼容2/4/5/6/7/8。未标定的零值可保存，但仍不能发车。
+方向环参数为 `heading_gain_per_s` 和 `lateral_kp / lateral_kd`，轮速环参数为 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R) 同时修改两侧，另有单侧入口。Flash 保存使用格式 14，读取兼容格式 2 和 4～13。未标定的零值可保存，发车仍需有效标定。
 
 ## VOFA UART3协议与用法
 

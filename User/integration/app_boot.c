@@ -66,7 +66,7 @@ void app_main_poll(void) {
         MotionRequest request;
         (void)control_path_step(&path, &observation, &g_app_param, &request);
         app_exchange_publish_motion(&request);
-        debug_view_frame(&frame, &snapshot, preview);
+        debug_view_frame(&frame, &snapshot, preview, observation.element_debug);
         camera_frame_release(frame.frame_id);
     }
     debug_view_poll(&snapshot);

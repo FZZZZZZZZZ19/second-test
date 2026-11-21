@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 typedef struct { const char *name; size_t offset; float min, max, ui_scale; } Field;
+enum { HEADING_GAIN_FIELD = 38, VISION_CAMERA_CAL = 3, VISION_HEADING_GAIN = 4, VISION_BACK = 5 };
 #define F(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1}
 static const Field fields[] = {
     F("omega Kp", lateral_kp, 0, 10000), F("omega Kd", lateral_kd, 0, 10000),
@@ -33,7 +34,8 @@ static const Field fields[] = {
     F("element m/s", speed_element, 0, APP_MAX_SPEED_MPS),
     F("tune speed m/s", tune_speed_mps, .001f, APP_MAX_SPEED_MPS),
     F("accel m/s2", accel_mps2, .01f, 5.0f),
-    F("tune time s", tune_duration_s, APP_TUNE_MIN_S, APP_TUNE_MAX_S)
+    F("tune time s", tune_duration_s, APP_TUNE_MIN_S, APP_TUNE_MAX_S),
+    [HEADING_GAIN_FIELD] = F("heading gain", heading_gain_per_s, 0, APP_HEADING_GAIN_MAX)
 #undef H
 };
 static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,37,36,13,14};
@@ -44,7 +46,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_MAIN: return 3;
     case MENU_PARA: return 5;
     case MENU_HARDWARE: return 11;
-    case MENU_VISION: return 5;
+    case MENU_VISION: return VISION_BACK + 1;
     case MENU_CAMERA_CAL: return 9;
     case MENU_PARAMS: return sizeof control_fields / sizeof control_fields[0] + 1;
     case MENU_CONTROL: return 9;
@@ -68,7 +70,10 @@ const char *menu_label(const MenuModel *m, unsigned i) {
     case MENU_PARA: return para_items[i];
     case MENU_CONTROL: return control_items[i];
     case MENU_KEYPAD: return digits[i];
-    case MENU_VISION: return i==4?"back":i==3?"camera calib":fields[i].name;
+    case MENU_VISION:
+        if (i == VISION_BACK) return "back";
+        if (i == VISION_CAMERA_CAL) return "camera calib";
+        return fields[i == VISION_HEADING_GAIN ? HEADING_GAIN_FIELD : i].name;
     case MENU_CAMERA_CAL: return i==8?"back":fields[25+i].name;
     case MENU_PARAMS: return i == menu_count(m)-1 ? "back" : fields[control_fields[i]].name;
     case MENU_HARDWARE: return i==10?"back":fields[15+i].name;
@@ -115,9 +120,9 @@ MenuAction menu_confirm(MenuModel *m) {
         else return menu_back(m);
         break;
     case MENU_VISION:
-        if(i==3) { enter(m,MENU_CAMERA_CAL); break; }
-        if(i==4) return menu_back(m);
-        edit(m,i); break;
+        if (i == VISION_CAMERA_CAL) { enter(m,MENU_CAMERA_CAL); break; }
+        if (i == VISION_BACK) return menu_back(m);
+        edit(m, i == VISION_HEADING_GAIN ? HEADING_GAIN_FIELD : i); break;
     case MENU_CAMERA_CAL:
         if(i==8) return menu_back(m);
         edit(m,25+i); break;

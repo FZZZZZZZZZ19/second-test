@@ -6,6 +6,11 @@
 #define VISION_FORWARD_OFFSET_M 0.0355f
 
 typedef struct {
+    uint8_t state, flag;
+    bool available;
+} VisionElementDebug;
+
+typedef struct {
     uint32_t frame_id, capture_ms, session_id;
     float direction_rad, distance_px, speed_cap_mps;
     TrackState state;
@@ -14,5 +19,6 @@ typedef struct {
     /* Vehicle ground coordinates: right positive, forward positive; curvature right positive. */
     float lateral_m, forward_m, curvature; /* forward_m is signed after origin shift. */
     float heading_rad; /* Ground direction from near to middle sample, right positive. */
+    VisionElementDebug element_debug;
 } VisionOutput;
 #endif
