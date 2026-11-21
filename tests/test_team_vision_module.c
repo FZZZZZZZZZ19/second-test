@@ -33,8 +33,8 @@ int main(void) {
     float u=preview[0].x, v=preview[0].y;
     float original_z=(params.ground_h3*u+params.ground_h4*v+params.ground_h5) /
                      (params.ground_h6*u+params.ground_h7*v+1);
-    assert(out.lateral_m>0 && original_z>0 && out.forward_m<0);
-    assert(fabsf(out.forward_m-(original_z-.35f))<1e-6f && fabsf(out.curvature)<.02f);
+    assert(out.lateral_m>0 && original_z>.0355f && out.forward_m>0);
+    assert(fabsf(out.forward_m-(original_z-.0355f))<1e-6f && fabsf(out.curvature)<.02f);
     PathControlState control;
     MotionRequest request;
     path_control_reset(&control,9);

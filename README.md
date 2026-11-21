@@ -12,9 +12,9 @@ V1.50.19按实测反馈调整保存阈值，两侧速度绝对值均小于0.5m/s
 
 V1.50.18修复VOFA target保存。保存检查STATIC模式、零PWM及反馈速度绝对值小于0.5m/s，允许停车时原始计数抖动，已移除额外500ms等待。VOFA只启动速度闭环，要求参数合法、编码器反馈有效和目标大于0。独立run 30提供30%开环调试。比赛start的完整标定检查继续生效。
 
-当前开发基线为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，本地联调版本为 V1.6.9。主循环使用队友的巡边和补线链路，三点投影后通过 VisionOutput 交给现有电控。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
+当前开发基线为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，本地联调版本为 V1.6.10。主循环使用队友的巡边和补线链路，三点投影后通过 VisionOutput 交给现有电控。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
 
-小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。短跑页显示摄像头画面、近中远三个红色标记、剩余秒数和限速后的目标速度。方向增益在 `para → vision → omega Kp / omega Kd` 设置。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调方向-kpkd-v169)
+小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。短跑页显示摄像头画面、近中远三个红色标记、剩余秒数和限速后的目标速度。方向增益在 `para → vision → omega Kp / omega Kd` 设置。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调方向-kpkd-v1610)
 
 四轮齿轮联动、左右两路差速电控工程。由模板 `mode-for-ch32v307vct@7673725` 集成 WCH/逐飞底层并加入应用代码。
 

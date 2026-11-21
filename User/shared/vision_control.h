@@ -3,7 +3,7 @@
 #include "app_types.h"
 #include <stdbool.h>
 #include <stdint.h>
-#define VISION_FORWARD_OFFSET_M 0.35f
+#define VISION_FORWARD_OFFSET_M 0.0355f
 
 typedef struct {
     uint32_t frame_id, capture_ms, session_id;
