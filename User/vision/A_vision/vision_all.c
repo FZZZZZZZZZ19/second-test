@@ -1149,6 +1149,10 @@ static void analyze(void)
     {
         if(flag == 1)
         {
+            if(have_all_white())
+            {
+                state = 3;flag = 4;
+            }
             if(have_half_white())
             {return;}
             if(!have_half_white())
