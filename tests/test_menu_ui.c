@@ -13,6 +13,7 @@ static uint32_t now, requests;
 static uint8_t key=7, record[APP_PARAM_RECORD_BYTES];
 static ControlSnapshot s;
 static unsigned resumes, images, saves, packets;
+static unsigned gyro_resets;
 static bool capture, save_ok=true;
 static int camera_error;
 static unsigned char screen[160][128];
@@ -30,6 +31,7 @@ void app_exchange_request(uint32_t r) { requests |= r; }
 void app_exchange_read_control(ControlSnapshot *out) { *out=s; }
 void app_control_init(void) {}
 void app_control_camera_ready(bool ok) { (void)ok; }
+void app_gyro_zero_angle(void) { gyro_resets++; }
 bool side_encoder_init(void) { return true; }
 void motor_brake_zero(void) {}
 bool param_store_save(const AppParam *p) { assert(maintenance_save_check(&s,p)==MAINT_OK); saves++; return save_ok && param_encode(p,saves,record); }
@@ -211,6 +213,15 @@ int main(void) {
     assert(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF);
     assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_SPEED_LPF_OFF));
     hold(); assert(!(g_app_param.flags & APP_FLAG_SPEED_LPF_OFF));
+    click(); hold(); /* speed LPF -> gyro loop */
+    assert(g_app_param.flags & APP_FLAG_GYRO_LOOP);
+    assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_GYRO_LOOP));
+    click(); hold(); /* gyro view */
+    hold(); assert(gyro_resets==0);
+    s.gyro.status=GYRO_READY;
+    hold(); assert(gyro_resets==1);
+    back(); click(); hold(); /* gyro sign */
+    assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_GYRO_INVERT));
     puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

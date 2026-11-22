@@ -9,12 +9,19 @@
 enum { PARAM_FLOAT_COUNT = 0 APP_FLOAT_FIELDS(PARAM_COUNT) };
 #undef PARAM_COUNT
 _Static_assert(32 + 4 * PARAM_FLOAT_COUNT <= 248, "parameter payload exceeds record");
-enum { HEADING_GAIN_SCHEMA = 14, PARAM_SCHEMA = 15 };
+enum { HEADING_GAIN_SCHEMA = 14, TURN_PREVIEW_SCHEMA = 15, PARAM_SCHEMA = 16 };
 _Static_assert(APP_TURN_PREVIEW_MAX_PX <= UINT8_MAX, "turn preview fits in one byte");
+_Static_assert(PARAM_FLOAT_COUNT + 1 <= UINT8_MAX, "float count fits in one byte");
 void param_defaults(AppParam *p) {
     memset(p, 0, sizeof(*p));
     vision_param_defaults(p);
     control_param_defaults(p);
+}
+bool param_yaw_gain_valid(float gain) {
+    if (!isfinite(gain) || gain < 0 || gain > APP_YAW_GAIN_MAX)
+        return false;
+    float hundredths = gain * 100;
+    return fabsf(hundredths - roundf(hundredths)) < .0001f;
 }
 static bool validate_param(const AppParam *p, bool allow_missing) {
     if (!p)
@@ -29,6 +36,8 @@ static bool validate_param(const AppParam *p, bool allow_missing) {
         return false;
     if (!isfinite(p->turn_preview_px) || p->turn_preview_px < APP_TURN_PREVIEW_MIN_PX ||
         p->turn_preview_px > APP_TURN_PREVIEW_MAX_PX || floorf(p->turn_preview_px) != p->turn_preview_px)
+        return false;
+    if (!param_yaw_gain_valid(p->yaw_kp) || !param_yaw_gain_valid(p->yaw_ki))
         return false;
     if ((!allow_missing || p->wheel_left_m != 0) && (p->wheel_left_m < .01f || p->wheel_left_m > .3f)) return false;
     if ((!allow_missing || p->wheel_right_m != 0) && (p->wheel_right_m < .01f || p->wheel_right_m > .3f)) return false;
@@ -124,7 +133,9 @@ bool param_encode(const AppParam *p, uint32_t seq, uint8_t out[APP_PARAM_RECORD_
 #undef ENCODE
     if (offset > 248)
         return false;
-    put32(out + 12, n);
+    /* Lower byte remains the float count. Gains occupy the next two bytes, in hundredths. */
+    put32(out + 12, n | ((uint32_t)roundf(p->yaw_kp * 100) << 8) |
+                    ((uint32_t)roundf(p->yaw_ki * 100) << 16));
     put32(out + 248, app_crc32(out, 248));
     put32(out + 252, 0x434F4D54u);
     return true;
@@ -157,9 +168,20 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
 #undef DECODE
     uint32_t threshold = get32(in + 24);
     uint32_t signs = get32(in + 28);
+    uint32_t count = get32(in + 12);
     candidate.heading_gain_per_s = APP_HEADING_GAIN_DEFAULT;
     candidate.turn_preview_px = APP_TURN_PREVIEW_DEFAULT_PX;
     if (schema == PARAM_SCHEMA) {
+        if (count >> 24)
+            return false;
+        candidate.yaw_kp = (float)((count >> 8) & 0xffu) / 100;
+        candidate.yaw_ki = (float)((count >> 16) & 0xffu) / 100;
+        count &= 0xffu;
+    } else {
+        candidate.yaw_kp = APP_YAW_KP_DEFAULT;
+        candidate.yaw_ki = APP_YAW_KI_DEFAULT;
+    }
+    if (schema >= TURN_PREVIEW_SCHEMA) {
         candidate.turn_preview_px = (float)(threshold >> 16);
         threshold &= 0xffffu;
     }
@@ -183,10 +205,12 @@ bool param_decode(const uint8_t in[APP_PARAM_RECORD_BYTES], AppParam *p, uint32_
     if (schema == 2) {
         candidate.debug_speed_mps = 0; n--;
     }
-    if (get32(in + 12) != n || threshold > 255 || signs > 3)
+    if (count != n || threshold > 255 || signs > 3)
         return false;
     candidate.calibration_mask = get32(in + 16);
     candidate.flags = get32(in + 20);
+    if (schema < PARAM_SCHEMA)
+        candidate.flags &= ~(APP_FLAG_GYRO_LOOP | APP_FLAG_GYRO_INVERT);
     candidate.threshold = (uint8_t)threshold;
     candidate.encoder_sign[0] = (signs & 1) ? -1 : 1;
     candidate.encoder_sign[1] = (signs & 2) ? -1 : 1;

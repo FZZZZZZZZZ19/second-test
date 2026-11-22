@@ -1,5 +1,6 @@
 
 #include "app_runtime.h"
+#include "yaw_control.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -10,6 +11,9 @@ static ControlSnapshot output;
 static SideFeedback feedback;
 static MotionRequest motion;
 static float duty[2];
+static float gyro_raw=.02f, gyro_norm=.02f;
+static int gyro_result=1;
+static unsigned gyro_reads;
 BoardIrqToken board_irq_save(void) { return 0; }
 void board_irq_restore(BoardIrqToken t) { (void)t; }
 void board_clock_tick(void) {}
@@ -19,6 +23,13 @@ void app_exchange_publish_control(const ControlSnapshot *s) { output=*s; }
 void app_exchange_read_motion(MotionRequest *r) { *r=motion; }
 uint32_t app_exchange_take_requests(void) { uint32_t r=requests; requests=0; return r; }
 bool side_encoder_sample(float dt, uint32_t now, SideFeedback *s) { (void)dt;(void)now;*s=feedback;return s->valid; }
+bool board_imu_init(void) { return true; }
+int board_imu_read(bool calibration,float *z,float *norm,float *accel) {
+    (void)calibration;
+    gyro_reads++;
+    *z=gyro_raw; *norm=gyro_norm; *accel=1;
+    return gyro_result;
+}
 void motor_brake_zero(void) { duty[0]=duty[1]=0; }
 void motor_apply_forward(float l,float r) { duty[0]=l;duty[1]=r; }
 void board_motor_write_en(SideId side,uint32_t d) { duty[side]=d/10000.f; }
@@ -68,6 +79,68 @@ static void check_tune(void) {
     tick(REQ_HALT);
     assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
 }
+static void check_gyro(void) {
+    app_gyro_init();
+    g_app_param.flags |= APP_FLAG_GYRO_LOOP;
+    tick(REQ_TRACK_TUNE);
+    assert(output.mode==RUN_FAULT && output.reason==STOP_GYRO && duty[0]==0 && duty[1]==0);
+    tick(REQ_RESET);
+    for (unsigned i=1;i<=APP_GYRO_CAL_SAMPLES;i++) {
+        app_gyro_poll(&output);
+        app_gyro_poll(&output);
+        tick(0);
+        assert(output.gyro.calibration_samples==i && gyro_reads==i);
+        assert(output.gyro.status==(i==APP_GYRO_CAL_SAMPLES ? GYRO_READY : GYRO_CALIBRATING));
+    }
+    gyro_raw=.02f+1.5707963268f;
+    app_gyro_poll(&output); tick(0);
+    app_gyro_zero_angle();
+    for (unsigned i=0;i<200;i++) { app_gyro_poll(&output); tick(0); }
+    assert(fabsf(output.gyro.rate_radps-1.5707963268f)<1e-5f);
+    assert(fabsf(output.gyro.angle_rad-1.5707963268f)<1e-4f);
+    g_app_param.flags |= APP_FLAG_GYRO_INVERT;
+    app_gyro_poll(&output); tick(0);
+    assert(output.gyro.rate_radps<0 && output.gyro.angle_rad<0);
+    g_app_param.flags &= ~APP_FLAG_GYRO_INVERT;
+
+    gyro_raw=.02f;
+    app_gyro_poll(&output); tick(REQ_TRACK_TUNE);
+    publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_RUNNING && output.omega_target_radps==-.4f);
+    assert(output.omega_command_radps<output.omega_target_radps);
+    unsigned reads_before=gyro_reads;
+    for (unsigned i=0;i<=APP_GYRO_TIMEOUT_MS/5;i++) {
+        publish_tune_frame(); tick(0);
+    }
+    assert(gyro_reads==reads_before); /* TIM6 never touches the bus. */
+    assert(output.mode==RUN_FAULT && output.reason==STOP_GYRO && output.gyro.status==GYRO_STALE);
+    assert(duty[0]==0 && duty[1]==0);
+
+    tick(REQ_RESET); app_gyro_poll(&output); tick(REQ_TRACK_TUNE);
+    publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_RUNNING);
+    gyro_result=-1;
+    app_gyro_poll(&output); publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_FAULT && output.reason==STOP_GYRO && output.gyro.status==GYRO_ERROR);
+    assert(duty[0]==0 && duty[1]==0);
+    tick(REQ_RESET);
+    g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
+    tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_RUNNING && output.omega_command_radps==output.omega_target_radps);
+    tick(REQ_HALT);
+
+    float integral=0, command;
+    for (unsigned i=0;i<1000;i++)
+        assert(yaw_control_step(&integral,&g_app_param,1,0,.005f,false,&command));
+    assert(integral==.5f);
+    assert(yaw_control_step(&integral,&g_app_param,1,-20,.005f,false,&command) && command==3);
+    assert(yaw_control_step(&integral,&g_app_param,0,1,.005f,true,&command) && integral<.5f);
+    assert(!yaw_control_step(&integral,&g_app_param,0,NAN,.005f,false,&command));
+    GyroEstimator estimator={0};
+    assert(gyro_estimator_step(&estimator,.02f,.02f,1,true,0) && estimator.count==1);
+    assert(gyro_estimator_step(&estimator,1,1,1,true,5) && estimator.count==0);
+    assert(!gyro_estimator_step(&estimator,NAN,0,1,true,10));
+}
 int main(void) {
     param_defaults(&g_app_param);
     app_control_init();
@@ -93,6 +166,8 @@ int main(void) {
     tick(REQ_RUN30); clock_us+=25000; tick(0); assert(output.mode==RUN_FAULT && duty[0]==0);
     tick(REQ_RESET); tick(REQ_RUN30); tick(REQ_HALT); assert(duty[0]==0 && output.targets.left_mps==0);
     check_tune();
+    check_gyro();
+    puts("PASS: gyro calibration, rate and angle signs, zero, PI limits, timeout, error, bypass and foreground I2C");
     puts("PASS: track tune fresh start, steering, speed cap, timeout, stale/lost frame, feedback and halt; real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault");
     return 0;
 }

@@ -42,7 +42,8 @@ typedef enum {
     STOP_TIMING,
     STOP_TRACK,
     STOP_CONFIG,
-    STOP_TUNE_DONE
+    STOP_TUNE_DONE,
+    STOP_GYRO
 } StopReason;
 typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8, REQ_HALT = 16, REQ_RUN30 = 32, REQ_SPEED_DEBUG = 64, REQ_RUN5 = 128, REQ_TRACK_TUNE = 256 } AppRequest;
 typedef struct {
@@ -109,6 +110,13 @@ typedef struct {
     uint8_t confidence;
     bool valid, stop_requested;
 } MotionRequest;
+typedef enum { GYRO_WAIT, GYRO_CALIBRATING, GYRO_READY, GYRO_ERROR, GYRO_STALE } GyroStatus;
+typedef struct {
+    uint32_t stamp_ms, read_max_us;
+    float rate_radps, angle_rad;
+    uint16_t calibration_samples;
+    GyroStatus status;
+} GyroMeasurement;
 typedef struct {
     uint32_t stamp_ms, session_id;
     RunMode mode;
@@ -116,9 +124,11 @@ typedef struct {
     SideFeedback feedback;
     SideTargets targets;
     float duty[2];
-    uint32_t vision_age_ms, overruns;
+    uint32_t vision_age_ms, overruns, control_max_us;
     bool camera_ok, config_ok;
     uint32_t tune_remaining_ms;
+    GyroMeasurement gyro;
+    float omega_target_radps, omega_command_radps;
 } ControlSnapshot;
 typedef struct {
     TrackState state;

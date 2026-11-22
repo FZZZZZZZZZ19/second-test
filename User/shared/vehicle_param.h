@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #define APP_FLAG_SPEED_LPF_OFF (1u << 2)
+#define APP_FLAG_GYRO_LOOP (1u << 3)
+#define APP_FLAG_GYRO_INVERT (1u << 4)
 
 /* All speed/distance values are SI units; gain outputs use duty 0..1. */
 #define APP_FLOAT_FIELDS(X)                                                                        \
@@ -27,14 +29,16 @@ typedef struct {
 #undef DECL_FIELD
     float heading_gain_per_s; /* Stored separately from the legacy float payload. */
     float turn_preview_px; /* Integer-valued radius in the original camera image. */
+    float yaw_kp, yaw_ki;
     uint32_t calibration_mask;
-    uint32_t flags; /* bit0: verified race-element profile, bit1: capture timing validated, bit2: speed LPF bypass */
+    uint32_t flags; /* bits 0-1: race/capture validation; bits 2-4: see APP_FLAG_* */
     uint8_t threshold;
     int8_t encoder_sign[2];
 } AppParam;
 void param_defaults(AppParam *p);
 bool param_valid(const AppParam *p);
 bool param_storable(const AppParam *p);
+bool param_yaw_gain_valid(float gain);
 bool param_can_arm(const AppParam *p, bool full_race);
 float param_track(const AppParam *p);
 bool param_encode(const AppParam *p, uint32_t sequence, uint8_t out[APP_PARAM_RECORD_BYTES]);

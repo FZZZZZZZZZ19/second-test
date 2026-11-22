@@ -78,6 +78,9 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     switch (a) {
     case MENU_START:
         if (s->mode != RUN_STATIC_DEBUG) { note("stop before start"); break; }
+        if ((g_app_param.flags & APP_FLAG_GYRO_LOOP) && s->gyro.status != GYRO_READY) {
+            note("gyro not ready"); break;
+        }
         if (!camera_frame_set_running(true)) { note("camera init failed"); break; }
         app_control_camera_ready(true);
         start_pending = true; start_ms = board_time_ms();
@@ -85,6 +88,9 @@ static void action(MenuAction a, const ControlSnapshot *s) {
     case MENU_TRACK_TUNE:
         tune_element = (VisionElementDebug){0};
         if (s->mode != RUN_STATIC_DEBUG) { note("stop first"); break; }
+        if ((g_app_param.flags & APP_FLAG_GYRO_LOOP) && s->gyro.status != GYRO_READY) {
+            note("gyro not ready"); break;
+        }
         if (!camera_frame_set_running(true)) { note("camera failed"); break; }
         app_control_camera_ready(true);
         app_exchange_request(REQ_TRACK_TUNE);
@@ -121,13 +127,20 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         (void)menu_back(&menu);
         break;
     }
-    case MENU_SPEED_LPF: {
+    case MENU_SPEED_LPF:
+    case MENU_GYRO_TOGGLE:
+    case MENU_GYRO_SIGN: {
         AppParam candidate = g_app_param;
-        candidate.flags ^= APP_FLAG_SPEED_LPF_OFF;
-        if (save_parameters(&candidate,s))
-            note(candidate.flags & APP_FLAG_SPEED_LPF_OFF ? "LPF OFF saved" : "LPF ON saved");
+        uint32_t flag = a == MENU_SPEED_LPF ? APP_FLAG_SPEED_LPF_OFF :
+                        a == MENU_GYRO_TOGGLE ? APP_FLAG_GYRO_LOOP : APP_FLAG_GYRO_INVERT;
+        candidate.flags ^= flag;
+        (void)save_parameters(&candidate,s);
         break;
     }
+    case MENU_GYRO_ZERO:
+        if (s->mode == RUN_STATIC_DEBUG && s->gyro.status == GYRO_READY)
+            app_gyro_zero_angle();
+        break;
     case MENU_SAVE: (void)save_parameters(&g_app_param,s); break;
     default: break;
     }
@@ -145,15 +158,43 @@ static void render(const ControlSnapshot *s, uint32_t now) {
     }
     if (menu.page == MENU_TUNE_IMAGE) {
         if (s->mode == RUN_TUNE_RUNNING) {
-            unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
-            unsigned long speed=(unsigned long)(100*fminf(g_app_param.tune_speed_mps,
-                                                         g_app_param.speed_limit_mps)+.5f);
-            snprintf(text,sizeof text,"%lu.%lus %lu.%02lum/s",
-                     tenths/10,tenths%10,speed/100,speed%100);
+            if ((g_app_param.flags & APP_FLAG_GYRO_LOOP) && (now / 1000u) % 2u) {
+                menu_float_text(a,sizeof a,s->omega_target_radps);
+                menu_float_text(b,sizeof b,s->gyro.rate_radps);
+                snprintf(text,sizeof text,"T%.6s M%.6s",a,b);
+            } else {
+                unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
+                unsigned long speed=(unsigned long)(100*fminf(g_app_param.tune_speed_mps,
+                                                             g_app_param.speed_limit_mps)+.5f);
+                snprintf(text,sizeof text,"%lu.%lus %lu.%02lum/s",
+                         tenths/10,tenths%10,speed/100,speed%100);
+            }
             line(0,text);
         } else line(0,message);
         draw_tune_element();
         return;
+    }
+    if (menu.page == MENU_GYRO_VIEW) {
+        line(1, g_app_param.flags & APP_FLAG_GYRO_LOOP ? "gyro loop ON" : "gyro loop OFF");
+        switch (s->gyro.status) {
+        case GYRO_READY: line(2, "gyro ready"); break;
+        case GYRO_ERROR: line(2, "gyro I2C error"); break;
+        case GYRO_STALE: line(2, "gyro stale"); break;
+        case GYRO_CALIBRATING:
+            snprintf(text,sizeof text,"cal %u/%u",(unsigned)s->gyro.calibration_samples,APP_GYRO_CAL_SAMPLES);
+            line(2,text); break;
+        default: line(2, "gyro starting"); break;
+        }
+        menu_float_text(a, sizeof a, s->gyro.status == GYRO_READY ? s->gyro.rate_radps : NAN);
+        snprintf(text,sizeof text,"rad/s %s",a); line(3,text);
+        menu_float_text(a, sizeof a, s->gyro.status == GYRO_READY ? s->gyro.angle_rad * 57.2957795f : NAN);
+        snprintf(text,sizeof text,"deg   %s",a); line(4,text);
+        menu_float_text(a, sizeof a, s->omega_target_radps);
+        snprintf(text,sizeof text,"ref   %s",a); line(5,text);
+        snprintf(text,sizeof text,"I2C max %luus",(unsigned long)s->gyro.read_max_us); line(6,text);
+        snprintf(text,sizeof text,"ISR max %luus",(unsigned long)s->control_max_us); line(7,text);
+        snprintf(text,sizeof text,"ISR >4ms %lu",(unsigned long)s->overruns); line(8,text);
+        line(9,"OK:zero K1:back"); return;
     }
     if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
         if (now - last_image > 1000) {
@@ -201,6 +242,10 @@ static void render(const ControlSnapshot *s, uint32_t now) {
             const char *label = menu_label(&menu,i);
             if (menu.page == MENU_CONTROL && !strcmp(label,"speed LPF"))
                 label = g_app_param.flags & APP_FLAG_SPEED_LPF_OFF ? "speed LPF OFF" : "speed LPF ON";
+            else if (menu.page == MENU_CONTROL && !strcmp(label,"gyro loop"))
+                label = g_app_param.flags & APP_FLAG_GYRO_LOOP ? "gyro loop ON" : "gyro loop OFF";
+            else if (menu.page == MENU_CONTROL && !strcmp(label,"gyro sign"))
+                label = g_app_param.flags & APP_FLAG_GYRO_INVERT ? "gyro sign -" : "gyro sign +";
             snprintf(text, sizeof text, "%c%s", i == menu.selected ? '>' : ' ', label);
             styled_line(row + 2,text,1,i==menu.selected);
         }
@@ -221,6 +266,7 @@ void debug_view_poll(const ControlSnapshot *s) {
             app_control_camera_ready(false);
             note(s->reason == STOP_TUNE_DONE ? "tune done" :
                  s->reason == STOP_ENCODER ? "check encoder" :
+                 s->reason == STOP_GYRO ? "check gyro" :
                  s->reason == STOP_VISION ? "track lost" :
                  s->reason == STOP_CONFIG ? "check setup" : "tune stopped");
         }

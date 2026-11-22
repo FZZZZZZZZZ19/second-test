@@ -2,6 +2,7 @@
 #include "app_runtime.h"
 #include "track_profile.h"
 #include "vehicle_calibration.h"
+#include "yaw_control.h"
 #include <math.h>
 #include <string.h>
 static uint32_t debug_duty_ticks;
@@ -11,6 +12,13 @@ static SpeedPiState pi[2];
 static MotionPlanState plan;
 static uint32_t previous_us, tune_since;
 static volatile bool initialized, camera_ok;
+static GyroMeasurement gyro_latest;
+static float yaw_integral;
+void app_control_publish_gyro(const GyroMeasurement *measurement) {
+    BoardIrqToken token = board_irq_save();
+    gyro_latest = *measurement;
+    board_irq_restore(token);
+}
 void app_control_camera_ready(bool ok) {
     BoardIrqToken t = board_irq_save();
     camera_ok = ok;
@@ -24,6 +32,7 @@ void app_control_init(void) {
     memset(&good, 0, sizeof(good));
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
+    yaw_integral = 0;
     previous_us = board_time_us();
     initialized = true;
     app_exchange_publish_control(&status);
@@ -32,6 +41,7 @@ static void fault(StopReason r) {
     status.mode = RUN_FAULT;
     status.reason = r;
     status.tune_remaining_ms = 0;
+    yaw_integral = 0;
     motor_brake_zero();
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
@@ -47,8 +57,17 @@ void app_control_tick_isr(void) {
     float dt = (float)elapsed * .000001f;
     status.stamp_ms = now;
     status.camera_ok = camera_ok;
+    status.gyro = gyro_latest;
+    if (status.gyro.status == GYRO_READY && now - status.gyro.stamp_ms > APP_GYRO_TIMEOUT_MS)
+        status.gyro.status = GYRO_STALE;
+    bool gyro_enabled = (g_app_param.flags & APP_FLAG_GYRO_LOOP) != 0;
+    bool gyro_ready = status.gyro.status == GYRO_READY &&
+                      isfinite(status.gyro.rate_radps) && isfinite(status.gyro.angle_rad);
+    status.omega_target_radps = status.omega_command_radps = 0;
+    if (!gyro_enabled || (status.mode != RUN_RUNNING && status.mode != RUN_TUNE_RUNNING))
+        yaw_integral = 0;
     status.config_ok = param_can_arm(&g_app_param, CAL_FULL_RACE != 0) && camera_ok &&
-                       CAL_VISION_V2_VALIDATED &&
+                       (!gyro_enabled || gyro_ready) && CAL_VISION_V2_VALIDATED &&
                        !CAL_FULL_RACE;
     if (elapsed == 0 || elapsed > 20000) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
@@ -85,6 +104,7 @@ void app_control_tick_isr(void) {
         status.session_id++;
         memset(&good, 0, sizeof(good));
         if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
+        else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
         else if (!status.feedback.valid || !(fabsf(status.feedback.speed_mps[0]) < .03f) ||
                  !(fabsf(status.feedback.speed_mps[1]) < .03f)) fault(STOP_ENCODER);
         else {
@@ -105,6 +125,8 @@ void app_control_tick_isr(void) {
         }
         requests = 0;
     }
+    if (status.mode == RUN_READY && gyro_enabled && !gyro_ready)
+        fault(STOP_GYRO);
     if (run_manager_step(&status.mode, &status.reason, requests,
                          status.config_ok && status.feedback.valid &&
                              fabsf(status.feedback.speed_mps[0]) < .03f &&
@@ -129,7 +151,8 @@ void app_control_tick_isr(void) {
                             (current && incoming.stop_requested) ? STOP_TRACK : STOP_TUNE_DONE;
             status.session_id++;
             memset(&good, 0, sizeof(good));
-        } else if (!camera_ok) fault(STOP_VISION);
+        } else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
+        else if (!camera_ok) fault(STOP_VISION);
         else if (!status.feedback.valid) fault(STOP_ENCODER);
         else if (status.mode == RUN_TUNE_WAIT) {
             if (now - tune_since >= APP_TUNE_WAIT_MS) fault(STOP_VISION);
@@ -180,8 +203,19 @@ void app_control_tick_isr(void) {
                 speed = 0;
                 stopping = true;
             }
-            bool ok =
-                motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping, &status.targets);
+            bool ok = true;
+            StopReason failure = STOP_NONFINITE;
+            status.omega_target_radps = omega;
+            if (gyro_enabled && !stopping) {
+                ok = gyro_ready && yaw_control_step(&yaw_integral, &g_app_param, omega,
+                         status.gyro.rate_radps, dt, status.targets.limited, &omega);
+                if (!ok)
+                    failure = STOP_GYRO;
+            } else
+                yaw_integral = 0;
+            status.omega_command_radps = ok ? omega : 0;
+            if (ok)
+                ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping, &status.targets);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
@@ -193,7 +227,7 @@ void app_control_tick_isr(void) {
                                    g_app_param.integral_limit, g_app_param.duty_limit,
                                    &status.duty[1]);
             if (!ok)
-                fault(STOP_NONFINITE);
+                fault(failure);
             else if (stopping && plan.left < .001f && plan.right < .001f) {
                 motor_brake_zero();
                 status.duty[0] = status.duty[1] = 0;
@@ -213,7 +247,10 @@ void app_control_tick_isr(void) {
         memset(pi, 0, sizeof(pi));
         memset(&plan, 0, sizeof(plan));
     }
-    if (board_time_us() - start > 4000) {
+    uint32_t used_us = board_time_us() - start;
+    if (used_us > status.control_max_us)
+        status.control_max_us = used_us;
+    if (used_us > 4000) {
         status.overruns++;
         if (status.overruns >= 3 && (status.mode == RUN_RUNNING || status.mode == RUN_DUTY_DEBUG ||
                                    status.mode == RUN_SPEED_DEBUG || status.mode == RUN_TUNE_RUNNING))

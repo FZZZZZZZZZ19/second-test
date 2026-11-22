@@ -12,7 +12,14 @@ V1.50.19按实测反馈调整保存阈值，两侧速度绝对值均小于0.5m/s
 
 V1.50.18修复VOFA target保存。保存检查STATIC模式、零PWM及反馈速度绝对值小于0.5m/s，允许停车时原始计数抖动，已移除额外500ms等待。VOFA只启动速度闭环，要求参数合法、编码器反馈有效和目标大于0。独立run 30提供30%开环调试。比赛start的完整标定检查继续生效。
 
-当前开发基线为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，本地联调版本为 V1.6.15。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向，即使近点居中也能跟随已经转向的近段路径。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
+当前开发分支为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，固件版本为 V1.7。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
+
+### V1.7 陀螺仪
+
+- ICM-20602 模块使用主板 H2。H2 的 1～4 脚依次接模块 VCC、GND、SCK、SDA，对应 3.3 V、地、PB3、PB5。I²C 使用 7 位地址 `0x69`，要求 CS 和 SDO/SA0 为高。模块已有上拉时可由板上电阻提供高电平，INT 无需连接。 [TDK ICM-20602 数据手册](https://product.tdk.com/system/files/dam/doc/product/sensor/mortion-inertial/imu/data_sheet/ds-000176-icm-20602-v1.1.pdf)
+- 把模块 **+Y 朝车头、+X 朝右**，水平安装。程序用 Z 轴计算偏航，左转为正。上电保持静止直到 `control → gyro view` 显示 `gyro ready`，校准约 800 个有效样本，最快约 4 秒。在该页看角速度（rad/s）、相对转角（°）和耗时，按中键将角度归零。手动左转时两值应向正方向变化，反了就切换 `control → gyro sign +/-`。相对转角由角速度积分，长时间会漂移。
+- `control → gyro loop ON/OFF` 切换并写入 Flash，默认 OFF。ON 时 `start` 和 `track tune` 需要已校准且新鲜的角速度。读数错误或超过 50 ms 没有新样本会停机。OFF 时仍可测量和查看角度。开环电机指令与 VOFA 轮速调试独立于陀螺仪闭环。
+- `para → control → yaw Kp / yaw Ki` 用原有键盘保存，初值 0.20 / 0.50，范围 0～2.50，步进 0.01。`gyro view` 的 `I2C max` 是主循环读数耗时，`ISR max` 和 `ISR >4ms` 来自 5 ms 电控中断。先架空车轮验证方向和耗时，再低速试车。
 
 小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。预览顶部显示倒计时和限速后的目标速度，底部显示同一帧的视觉原始 `state`、`flag`，画面保留三个红色标记。`para → vision → heading gain` 调近段方向的转向强度，默认 2.0 s⁻¹，可设 0～20，按 SAVE 后掉电保留。横向偏差仍用同页的 `omega Kp / omega Kd` 调节。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调转向)
 
@@ -67,7 +74,7 @@ MounRiver 导入根目录 `.project`，或打开 `.mrs/CH32V307VCT.mrs-workspace
 
 转弯早晚可在 `para → vision → turn preview px` 调整。可设 35～90 的整数，默认 65，按 SAVE 后复位仍保留。调小通常晚一点转，调大通常早一点转。先保持短跑速度和方向增益相同再对比。
 
-方向环参数为 `heading_gain_per_s` 和 `lateral_kp / lateral_kd`，轮速环参数为 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R) 同时修改两侧，另有单侧入口。Flash 保存使用格式 15，读取兼容格式 2 和 4～14。未标定的零值可保存，发车仍需有效标定。
+方向环参数为 `heading_gain_per_s` 和 `lateral_kp / lateral_kd`，轮速环参数为 `kp_left/right / ki_left/right`。speed Kp/Ki(L+R) 同时修改两侧，另有单侧入口。Flash 保存使用格式 16，读取兼容 V1.6 的格式 15 和此前项目格式 2、4～14。升级前后保持 Flash 参数区未被整片擦除，原有标定才能继续读取。
 
 ## VOFA UART3协议与用法
 

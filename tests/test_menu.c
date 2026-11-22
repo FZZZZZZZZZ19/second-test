@@ -9,7 +9,7 @@
 #include <string.h>
 static void put32(uint8_t *p, uint32_t x) { for(unsigned i=0;i<4;i++) p[i]=(uint8_t)(x>>(i*8)); }
 static void legacy_header(uint8_t *record, uint32_t schema, uint32_t count) {
-    assert(record[4]==15);
+    assert(record[4]==16);
     put32(record+28,record[25]);
     put32(record+24,record[24]);
     put32(record+4,schema);
@@ -111,7 +111,12 @@ int main(void) {
     assert(menu_count(&h)==1);
     assert(menu_back(&h)==MENU_STOP && h.selected==6);
     h.selected=7; assert(menu_confirm(&h)==MENU_SPEED_LPF && h.page==MENU_CONTROL);
-    h.selected=8; menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
+    pick(&h,"gyro loop"); assert(menu_confirm(&h)==MENU_GYRO_TOGGLE);
+    pick(&h,"gyro sign"); assert(menu_confirm(&h)==MENU_GYRO_SIGN);
+    pick(&h,"gyro view"); assert(menu_confirm(&h)==MENU_NONE && h.page==MENU_GYRO_VIEW);
+    assert(menu_confirm(&h)==MENU_GYRO_ZERO);
+    assert(menu_back(&h)==MENU_NONE && h.page==MENU_CONTROL && !strcmp(menu_label(&h,h.selected),"gyro view"));
+    pick(&h,"back"); menu_confirm(&h); assert(h.page==MENU_MAIN && h.selected==2);
     menu_init(&h); h.selected=1; menu_confirm(&h); menu_confirm(&h);
     h.selected=3; menu_confirm(&h); assert(h.page==MENU_CAMERA_CAL && menu_count(&h)==9);
     AppParam calibration; param_defaults(&calibration);
@@ -261,6 +266,7 @@ int main(void) {
     assert(q.turn_preview_px==65);
     old_signs[26]=0; /* Schema 14 had no preview byte. */
     put32(old_signs+4,14);
+    put32(old_signs+12,old_signs[12]); /* No stored yaw gains in the old layout. */
     put32(old_signs+248,app_crc32(old_signs,248));
     assert(param_decode(old_signs,&q,&seq) && q.heading_gain_per_s==3.25f && q.turn_preview_px==65);
     MenuModel preview_menu; menu_init(&preview_menu); preview_menu.page=MENU_VISION;
@@ -271,6 +277,21 @@ int main(void) {
     strcpy(preview_menu.input,"50"); assert(menu_apply_value(&preview_menu,&q));
     assert(param_encode(&q,26,old_signs) && param_decode(old_signs,&q,&seq));
     assert(q.turn_preview_px==50 && q.heading_gain_per_s==3.25f && q.threshold==179);
+    put32(old_signs+4,15);
+    put32(old_signs+12,old_signs[12]);
+    put32(old_signs+248,app_crc32(old_signs,248));
+    assert(param_decode(old_signs,&q,&seq) && q.turn_preview_px==50 && q.yaw_kp==APP_YAW_KP_DEFAULT);
+    assert(q.yaw_ki==APP_YAW_KI_DEFAULT && !(q.flags & (APP_FLAG_GYRO_LOOP | APP_FLAG_GYRO_INVERT)));
+    MenuModel yaw_menu; menu_init(&yaw_menu); yaw_menu.page=MENU_PARAMS;
+    pick(&yaw_menu,"yaw Kp"); menu_confirm(&yaw_menu);
+    strcpy(yaw_menu.input,"2.51"); assert(!menu_apply_value(&yaw_menu,&q));
+    strcpy(yaw_menu.input,"0.125"); assert(!menu_apply_value(&yaw_menu,&q));
+    strcpy(yaw_menu.input,"0.37"); assert(menu_apply_value(&yaw_menu,&q));
+    q.flags |= APP_FLAG_GYRO_LOOP | APP_FLAG_GYRO_INVERT;
+    assert(param_encode(&q,27,old_signs) && param_decode(old_signs,&q,&seq));
+    assert(q.yaw_kp==.37f && q.yaw_ki==APP_YAW_KI_DEFAULT && q.turn_preview_px==50);
+    assert((q.flags & (APP_FLAG_GYRO_LOOP | APP_FLAG_GYRO_INVERT)) ==
+           (APP_FLAG_GYRO_LOOP | APP_FLAG_GYRO_INVERT));
     float old_center=93.5f; memcpy(record+32+23*4,&old_center,4);
     memset(record+232,255,8); legacy_header(record,4,50);
     assert(param_decode(record,&q,&seq) && q.body_length_m==0 && q.body_width_m==0 && q.debug_speed_mps==.2f);
@@ -279,7 +300,7 @@ int main(void) {
     assert(q.ground_h0==CAL_GROUND_H0 && q.ground_h7==CAL_GROUND_H7);
     uint8_t migrated[APP_PARAM_RECORD_BYTES];
     q.center_x_px=61; q.ground_h2=-.42f;
-    assert(param_encode(&q,9,migrated) && migrated[4]==15);
+    assert(param_encode(&q,9,migrated) && migrated[4]==16);
     AppParam again; uint32_t migrated_seq;
     assert(param_decode(migrated,&again,&migrated_seq));
     assert(again.center_x_px==61 && again.ground_h2==-.42f && migrated_seq==9);

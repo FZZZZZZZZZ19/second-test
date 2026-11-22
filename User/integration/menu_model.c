@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 typedef struct { const char *name; size_t offset; float min, max, ui_scale; } Field;
-enum { HEADING_GAIN_FIELD = 38, TURN_PREVIEW_FIELD, VISION_CAMERA_CAL = 3,
+enum { HEADING_GAIN_FIELD = 38, TURN_PREVIEW_FIELD, YAW_KP_FIELD, YAW_KI_FIELD, VISION_CAMERA_CAL = 3,
        VISION_HEADING_GAIN = 4, VISION_TURN_PREVIEW = 5, VISION_BACK = 6 };
+static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s",
+    "stop","run 5","track tune","speed LPF","gyro loop","gyro view","gyro sign","back"};
 #define F(name, member, lo, hi) {name, offsetof(AppParam, member), lo, hi, 1}
 static const Field fields[] = {
     F("omega Kp", lateral_kp, 0, 10000), F("omega Kd", lateral_kd, 0, 10000),
@@ -37,10 +39,12 @@ static const Field fields[] = {
     F("accel m/s2", accel_mps2, .01f, 5.0f),
     F("tune time s", tune_duration_s, APP_TUNE_MIN_S, APP_TUNE_MAX_S),
     [HEADING_GAIN_FIELD] = F("heading gain", heading_gain_per_s, 0, APP_HEADING_GAIN_MAX),
-    [TURN_PREVIEW_FIELD] = F("turn preview px", turn_preview_px, APP_TURN_PREVIEW_MIN_PX, APP_TURN_PREVIEW_MAX_PX)
+    [TURN_PREVIEW_FIELD] = F("turn preview px", turn_preview_px, APP_TURN_PREVIEW_MIN_PX, APP_TURN_PREVIEW_MAX_PX),
+    [YAW_KP_FIELD] = F("yaw Kp", yaw_kp, 0, APP_YAW_GAIN_MAX),
+    [YAW_KI_FIELD] = F("yaw Ki", yaw_ki, 0, APP_YAW_GAIN_MAX)
 #undef H
 };
-static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,37,36,13,14};
+static const unsigned control_fields[] = {3,4,5,6,7,8,9,10,11,12,33,34,35,37,36,13,14,YAW_KP_FIELD,YAW_KI_FIELD};
 static const char *const digits[] = {"1","2","3","DEL","4","5","6","CLR","7","8","9","-",".","0","SAVE","BACK"};
 void menu_init(MenuModel *m) { memset(m, 0, sizeof(*m)); m->candidate = m->stable = 7; }
 unsigned menu_count(const MenuModel *m) {
@@ -51,7 +55,7 @@ unsigned menu_count(const MenuModel *m) {
     case MENU_VISION: return VISION_BACK + 1;
     case MENU_CAMERA_CAL: return 9;
     case MENU_PARAMS: return sizeof control_fields / sizeof control_fields[0] + 1;
-    case MENU_CONTROL: return 9;
+    case MENU_CONTROL: return sizeof control_items / sizeof control_items[0];
     case MENU_KEYPAD: return 16;
     case MENU_LIVE: return 2;
     default: return 1;
@@ -59,13 +63,12 @@ unsigned menu_count(const MenuModel *m) {
 }
 const char *menu_title(const MenuModel *m) {
     static const char *const titles[] = {"V" APP_VERSION " MAIN","para","vision","control parameters",
-        "control","number input","start / camera","image","motor test","hardware","camera calib","track tune"};
+        "control","number input","start / camera","image","motor test","hardware","camera calib","track tune","gyro view"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
 const char *menu_label(const MenuModel *m, unsigned i) {
     static const char *const main_items[] = {"start","para","control"};
     static const char *const para_items[] = {"vision","control","hardware","save to flash","back"};
-    static const char *const control_items[] = {"run 30","image","vofa","VOFA target m/s","stop","run 5","track tune","speed LPF","back"};
     if (i >= menu_count(m)) return "";
     switch (m->page) {
     case MENU_MAIN: return main_items[i];
@@ -106,6 +109,7 @@ MenuAction menu_back(MenuModel *m) {
     case MENU_PARA: return_to(m,MENU_MAIN); return MENU_NONE;
     case MENU_CONTROL: case MENU_RACE_IMAGE: return_to(m,MENU_MAIN); return MENU_STOP;
     case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
+    case MENU_GYRO_VIEW: return_to(m,MENU_CONTROL); return MENU_NONE;
     case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;
@@ -142,9 +146,13 @@ MenuAction menu_confirm(MenuModel *m) {
         if (i == 6) { enter(m, MENU_TUNE_IMAGE); return MENU_TRACK_TUNE; }
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
         if (i == 7) return MENU_SPEED_LPF;
+        if (i == 8) return MENU_GYRO_TOGGLE;
+        if (i == 9) { enter(m, MENU_GYRO_VIEW); break; }
+        if (i == 10) return MENU_GYRO_SIGN;
         if (i == 3) edit(m, 9);
-        else { if (i == 8) return menu_back(m); return MENU_STOP; }
+        else { if (i == menu_count(m)-1) return menu_back(m); return MENU_STOP; }
         break;
+    case MENU_GYRO_VIEW: return MENU_GYRO_ZERO;
     case MENU_KEYPAD: {
         size_t n = strlen(m->input);
         m->input_error = false;
@@ -198,6 +206,8 @@ bool menu_apply_value(const MenuModel *m, AppParam *p) {
     float value = strtof(m->input, &end);
     const Field *f = &fields[m->field];
     if (*end || !isfinite(value) || value < f->min || value > f->max) return false;
+    if ((m->field == YAW_KP_FIELD || m->field == YAW_KI_FIELD) && !param_yaw_gain_valid(value))
+        return false;
     value/=f->ui_scale; /* hardware UI uses millimetres; AppParam remains SI */
     if (f->offset==offsetof(AppParam,effective_track_m) && value>0 && value<.03f) return false;
     if ((f->offset==offsetof(AppParam,counts_left) || f->offset==offsetof(AppParam,counts_right) ||

@@ -4,6 +4,8 @@
 #include "vehicle_calibration.h"
 
 static inline void control_param_defaults(AppParam *p) {
+    p->yaw_kp = APP_YAW_KP_DEFAULT;
+    p->yaw_ki = APP_YAW_KI_DEFAULT;
     p->encoder_sign[0] = CAL_ENCODER_SIGN_LEFT;
     p->encoder_sign[1] = CAL_ENCODER_SIGN_RIGHT;
     p->encoder_tau_s = .025f;

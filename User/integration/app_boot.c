@@ -40,11 +40,13 @@ bool app_boot_init(void) {
     bool ok = camera_frame_init();
     app_control_camera_ready(ok);
     (void)camera_frame_set_running(false);
+    app_gyro_init();
     return ok;
 }
 void app_main_poll(void) {
     ControlSnapshot snapshot;
     app_exchange_read_control(&snapshot);
+    app_gyro_poll(&snapshot);
     if (pipeline_session != snapshot.session_id) {
         pipeline_session = snapshot.session_id;
         team_vision_reset();

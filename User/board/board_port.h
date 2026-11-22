@@ -16,6 +16,8 @@ void board_encoder_init(void);
 uint16_t board_encoder_raw16(SideId side);
 bool board_camera_stop(void);
 bool board_camera_start(void);
+bool board_imu_init(void);
+int board_imu_read(bool calibration, float *z, float *norm, float *accel);
 void board_controls_init(void);
 uint8_t board_key_code(void);
 #endif

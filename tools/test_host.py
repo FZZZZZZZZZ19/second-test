@@ -34,7 +34,7 @@ def main():
                            ('menu', ['maintenance','menu_model','vehicle_param','app_math']),
                            ('display', ['menu_display']),
                            ('motor_board', ['board_motor','motor','side_encoder','vehicle_param','app_math']),
-                           ('menu_runtime', ['app_control','run_manager','motion_plan','speed_control','vehicle_param','app_math'])]:
+                           ('menu_runtime', ['app_control','app_gyro','yaw_control','run_manager','motion_plan','speed_control','vehicle_param','app_math'])]:
         executable = out / ('test_' + label + '.exe')
         cmd = [args.cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2',
                *[arg for folder in ['User', *['User/'+d for d in ['vision','control','board','shared','integration','config']]] for arg in ['-I',str(ROOT/folder)]],
