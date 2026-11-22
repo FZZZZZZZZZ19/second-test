@@ -203,6 +203,9 @@ int main(void) {
     poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){2,3,true});
     assert(images==tune_images+2);
     assert_tune_element_row("state:2 flag:3");
+    unsigned retry_resumes=resumes;
+    s.mode=RUN_TUNE_WAIT; s.reason=STOP_VISION; s.session_id++; poll(100);
+    assert(capture && resumes==retry_resumes);
     s.mode=RUN_STATIC_DEBUG; s.reason=STOP_TUNE_DONE; s.stamp_ms++; poll(5);
     assert(!capture);
     poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});

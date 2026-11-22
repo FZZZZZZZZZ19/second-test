@@ -11,6 +11,8 @@ static MotionRequest good;
 static SpeedPiState pi[2];
 static MotionPlanState plan;
 static uint32_t previous_us, tune_since;
+static uint32_t tune_retry_last_frame;
+static unsigned tune_retry_frames;
 static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
@@ -47,6 +49,16 @@ static void fault(StopReason r) {
     memset(&plan, 0, sizeof(plan));
     memset(&status.targets, 0, sizeof(status.targets));
     status.duty[0] = status.duty[1] = 0;
+}
+static void tune_wait(uint32_t now, StopReason reason) {
+    status.mode = RUN_TUNE_WAIT;
+    status.reason = reason;
+    tune_since = now;
+    tune_retry_frames = 0;
+    status.session_id++;
+    memset(&good, 0, sizeof(good));
+    status.vision_age_ms = UINT32_MAX;
+    yaw_integral = 0;
 }
 void app_control_tick_isr(void) {
     board_clock_tick();
@@ -101,17 +113,11 @@ void app_control_tick_isr(void) {
         status.session_id++;
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & REQ_TRACK_TUNE)) {
-        status.session_id++;
-        memset(&good, 0, sizeof(good));
+        tune_wait(now, STOP_NONE);
         if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
         else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
         else if (!status.feedback.valid || !(fabsf(status.feedback.speed_mps[0]) < .03f) ||
                  !(fabsf(status.feedback.speed_mps[1]) < .03f)) fault(STOP_ENCODER);
-        else {
-            status.mode = RUN_TUNE_WAIT;
-            status.reason = STOP_NONE;
-            tune_since = now;
-        }
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_RUN30 | REQ_RUN5 | REQ_SPEED_DEBUG))) {
         bool speed_test = (requests & REQ_SPEED_DEBUG) != 0;
@@ -152,17 +158,31 @@ void app_control_tick_isr(void) {
             status.session_id++;
             memset(&good, 0, sizeof(good));
         } else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
-        else if (!camera_ok) fault(STOP_VISION);
+        else if (!camera_ok) fault(STOP_CONFIG);
         else if (!status.feedback.valid) fault(STOP_ENCODER);
         else if (status.mode == RUN_TUNE_WAIT) {
-            if (now - tune_since >= APP_TUNE_WAIT_MS) fault(STOP_VISION);
-            else if (tune_fresh && usable && good.speed_cap_mps > 0 &&
-                     fabsf(status.feedback.speed_mps[0]) < .03f &&
-                     fabsf(status.feedback.speed_mps[1]) < .03f) {
-                status.mode = RUN_TUNE_RUNNING;
-                tune_since = now;
+            bool retry = status.reason == STOP_VISION;
+            bool can_start = tune_fresh && usable && incoming.frame_id == good.frame_id &&
+                             isfinite(incoming.omega_raw) && isfinite(incoming.speed_cap_mps) &&
+                             good.speed_cap_mps > 0 && fabsf(status.feedback.speed_mps[0]) < .03f &&
+                             fabsf(status.feedback.speed_mps[1]) < .03f;
+            if (retry) {
+                if (!can_start)
+                    tune_retry_frames = 0;
+                else if (!tune_retry_frames || incoming.frame_id != tune_retry_last_frame) {
+                    tune_retry_last_frame = incoming.frame_id;
+                    tune_retry_frames++;
+                }
+                can_start = can_start && tune_retry_frames >= APP_TUNE_RETRY_FRAMES;
             }
-        } else if (!tune_fresh || !usable) fault(STOP_VISION);
+            if (can_start) {
+                status.mode = RUN_TUNE_RUNNING;
+                status.reason = STOP_NONE;
+                tune_since = now;
+            } else if (!retry && now - tune_since >= APP_TUNE_WAIT_MS)
+                tune_wait(now, STOP_VISION);
+        } else if (!tune_fresh || !usable)
+            tune_wait(now, STOP_VISION);
         if (status.mode == RUN_TUNE_RUNNING)
             status.tune_remaining_ms = duration_ms - (now - tune_since);
     }

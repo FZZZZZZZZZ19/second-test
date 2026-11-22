@@ -1,6 +1,6 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.7"
+#define APP_VERSION "1.7.1"
 #define APP_GYRO_PERIOD_MS 5u
 #define APP_GYRO_TIMEOUT_MS 50u
 #define APP_GYRO_CAL_SAMPLES 800u
@@ -19,6 +19,7 @@
 #define APP_TUNE_MAX_S 30.0f
 #define APP_TUNE_WAIT_MS 2000u
 #define APP_TUNE_FRAME_AGE_MS 150u
+#define APP_TUNE_RETRY_FRAMES 3u
 #define APP_CONTROL_PERIOD_MS 5u
 #define APP_WIDTH 188u
 #define APP_HEIGHT 120u

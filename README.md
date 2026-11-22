@@ -12,7 +12,7 @@ V1.50.19按实测反馈调整保存阈值，两侧速度绝对值均小于0.5m/s
 
 V1.50.18修复VOFA target保存。保存检查STATIC模式、零PWM及反馈速度绝对值小于0.5m/s，允许停车时原始计数抖动，已移除额外500ms等待。VOFA只启动速度闭环，要求参数合法、编码器反馈有效和目标大于0。独立run 30提供30%开环调试。比赛start的完整标定检查继续生效。
 
-当前开发分支为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，固件版本为 V1.7。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
+当前开发分支为 [v1.6](https://github.com/FZZZZZZZZZ19/second-test/tree/v1.6)，固件版本为 V1.7.1。主循环使用队友的巡边和补线链路。入弯时，近点到中点的地面方向也参与计算转向。路线顺序、圈数、终点停车和右环岛仍待接通或验收。 [视觉与电控联调说明](docs/视觉链路实现说明.md)
 
 ### V1.7 陀螺仪
 
@@ -20,6 +20,8 @@ V1.50.18修复VOFA target保存。保存检查STATIC模式、零PWM及反馈速�
 - 把模块 **+Y 朝车头、+X 朝右**，水平安装。程序用 Z 轴计算偏航，左转为正。上电保持静止直到 `control → gyro view` 显示 `gyro ready`，校准约 800 个有效样本，最快约 4 秒。在该页看角速度（rad/s）、相对转角（°）和耗时，按中键将角度归零。手动左转时两值应向正方向变化，反了就切换 `control → gyro sign +/-`。相对转角由角速度积分，长时间会漂移。
 - `control → gyro loop ON/OFF` 切换并写入 Flash，默认 OFF。ON 时 `start` 和 `track tune` 需要已校准且新鲜的角速度。读数错误或超过 50 ms 没有新样本会停机。OFF 时仍可测量和查看角度。开环电机指令与 VOFA 轮速调试独立于陀螺仪闭环。
 - `para → control → yaw Kp / yaw Ki` 用原有键盘保存，初值 0.20 / 0.50，范围 0～2.50，步进 0.01。`gyro view` 的 `I2C max` 是主循环读数耗时，`ISR max` 和 `ISR >4ms` 来自 5 ms 电控中断。先架空车轮验证方向和耗时，再低速试车。
+
+`track tune` 显示 `track lost retry` 时电机已停，摄像头继续识别。车轮停稳且收到连续 3 帧有效结果后，自动重新开始倒计时。按中键或 KEY1 返回会取消重试。
 
 小弯道调方向环使用 `control → track tune`。有效画面到达后以 `para → control → tune speed m/s` 设定的速度按 `tune time s` 设定的时长循迹，自动停车。预览顶部显示倒计时和限速后的目标速度，底部显示同一帧的视觉原始 `state`、`flag`，画面保留三个红色标记。`para → vision → heading gain` 调近段方向的转向强度，默认 2.0 s⁻¹，可设 0～20，按 SAVE 后掉电保留。横向偏差仍用同页的 `omega Kp / omega Kd` 调节。在主菜单的 `control → speed LPF ON/OFF` 可切换并保存轮速反馈滤波。赛道速度、全局限速和加速度也在 `para → control` 调整。 [操作步骤](docs/视觉链路实现说明.md#用小弯道调转向)
 

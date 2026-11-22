@@ -170,7 +170,9 @@ static void render(const ControlSnapshot *s, uint32_t now) {
                          tenths/10,tenths%10,speed/100,speed%100);
             }
             line(0,text);
-        } else line(0,message);
+        } else if (s->mode == RUN_TUNE_WAIT && s->reason == STOP_VISION)
+            line(0,"track lost retry");
+        else line(0,message);
         draw_tune_element();
         return;
     }

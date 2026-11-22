@@ -35,7 +35,8 @@ void motor_apply_forward(float l,float r) { duty[0]=l;duty[1]=r; }
 void board_motor_write_en(SideId side,uint32_t d) { duty[side]=d/10000.f; }
 static void tick(uint32_t req) { clock_us+=5000; requests=req; app_control_tick_isr(); }
 static void publish_tune_frame(void) {
-    motion=(MotionRequest){.session_id=output.session_id,.capture_ms=board_time_ms(),
+    static uint32_t frame_id;
+    motion=(MotionRequest){.session_id=output.session_id,.frame_id=++frame_id,.capture_ms=board_time_ms(),
                            .valid=true,.confidence=60,.speed_cap_mps=1,.omega_raw=-.4f};
 }
 static void check_tune(void) {
@@ -59,12 +60,36 @@ static void check_tune(void) {
     publish_tune_frame(); tick(0);
     assert(output.mode==RUN_STATIC_DEBUG && output.reason==STOP_TUNE_DONE && duty[0]==0 && duty[1]==0);
     tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
+    uint32_t old_session=output.session_id;
     motion.valid=false; tick(0);
-    assert(output.mode==RUN_FAULT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
-    tick(REQ_RESET); tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
+    assert(output.session_id!=old_session);
+    motion.valid=true; tick(0);
+    assert(output.mode==RUN_TUNE_WAIT); /* Ignore frames from the interrupted run. */
+    feedback.speed_mps[0]=.1f;
+    publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+    feedback.speed_mps[0]=0;
+    publish_tune_frame(); tick(0);
+    for (unsigned i=0;i<5;i++) tick(0);
+    assert(output.mode==RUN_TUNE_WAIT); /* Re-reading one frame cannot restart. */
+    motion.valid=false; tick(0);
+    for (unsigned i=1;i<APP_TUNE_RETRY_FRAMES;i++) {
+        publish_tune_frame(); tick(0);
+        assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+    }
+    publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_RUNNING && output.reason==STOP_NONE && output.tune_remaining_ms==4500);
     for (unsigned i=0;i<=APP_TUNE_FRAME_AGE_MS/5;i++) tick(0);
-    assert(output.mode==RUN_FAULT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
-    tick(REQ_RESET); tick(REQ_TRACK_TUNE); publish_tune_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
+    for (unsigned i=1;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    publish_tune_frame(); tick(REQ_HALT); /* Back wins on the frame that could restart. */
+    assert(output.mode==RUN_STATIC_DEBUG && output.reason==STOP_LOCAL && duty[0]==0 && duty[1]==0);
+    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
+    tick(REQ_TRACK_TUNE);
+    for (unsigned i=0;i<=APP_TUNE_WAIT_MS/5;i++) tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION);
     feedback.valid=false; tick(0);
     assert(output.mode==RUN_FAULT && output.reason==STOP_ENCODER && duty[0]==0 && duty[1]==0);
     feedback.valid=true;
