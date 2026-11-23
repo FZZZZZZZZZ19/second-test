@@ -556,7 +556,7 @@ void pred_points(int distance, TeamPixel *near_mid)
 }
 
 static int LR = 0;
-
+static int out_y_lr = 0;
 static int bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
 static int top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
 static int cx     = -1;                 /* Y/环岛分叉点 x */
@@ -1077,6 +1077,16 @@ void analyze_dir(void)
             LR = 0;
             restate = 4;reflag = 4;return;
         }
+        if(l1 == r1 && (l2 == (l1 - 2)%8) && r2 == (r1+1)%8)
+        {
+            out_y_lr = 1;
+            restate = 5;reflag = 5;return;
+        }
+        if(l1 == r1 && l2 == (l1-1)%8 && r2 == (r1 + 2)%8)
+        {
+            out_y_lr = 0;
+            restate = 5;reflag = 5;return;
+        }
         restate = 0;reflag = 0;
         return;
     }
@@ -1103,6 +1113,12 @@ void analyze_dir(void)
         if(l1 == r1 && l2==r2)
         {restate = 0;reflag = 0;return;}
         restate = 4;reflag = 4;return ;
+    }
+    if(restate == 5)
+    {
+        if(l1 == r1 && l2==r2)
+        {restate = 0;reflag = 0;return;}
+        restate = 5;reflag = 5;
     }
 }
 
@@ -1336,7 +1352,7 @@ void update_dir_info(void)
 {
     if(restate == 0)
     {
-        fill_none_dir();LR=0;
+        fill_none_dir();LR=0;out_y_lr = 0;
     }
     if(restate == 1)
     {
@@ -1353,6 +1369,10 @@ void update_dir_info(void)
     if(restate == 4)
     {
         fill_roundabout_out_dir(Offset_x, Offset_y);
+    }
+    if(restate == 5)
+    {
+        fill_Y_dir(out_y_lr, Offset_x);
     }
 }
 
