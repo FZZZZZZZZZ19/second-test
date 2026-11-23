@@ -44,6 +44,14 @@ static void reset_points(void)
     r_statics = 0;
 }
 
+static void reset_lrxy(void)
+{
+    lx = -1;
+    rx = -1;
+    ly = -1;
+    ry = -1;
+}
+
 static void reset_target_line(void)
 {
     for(int i = 0;i<LINE_LENGTH;i++)
@@ -242,7 +250,7 @@ static int find_y_start(int start_y)
         right = x - 1;
         width = right - left + 1;
 
-        if (width < 3 || width > 45) {
+        if (width < 3 || width > 40) {
             continue;
         }
         if (left <= 0 || right >= SCUT_IMAGE_W - 1) {
@@ -1187,7 +1195,7 @@ void fill_roundabout_in_dir(int offsetx,int offsety)
                 target_mid_line[i][0] = l_points[i][0] + offsetx;
                 target_mid_line[i][1] = l_points[i][1];
             }
-            start_y = l_first_bend_y - offsety;
+            start_y = l_first_bend_y - offsety -5 ;
         }
         if (find_start(start_y, 10)) {
             forward();
@@ -1215,7 +1223,7 @@ void fill_roundabout_in_dir(int offsetx,int offsety)
                 target_mid_line[i][0] = r_points[i][0] - offsetx;
                 target_mid_line[i][1] = r_points[i][1];
             }
-            start_y = r_first_bend_y - offsety;
+            start_y = r_first_bend_y - offsety-5;
         }
         if (find_start(start_y, 10)) {
             forward();
@@ -1249,7 +1257,7 @@ void fill_roundabout_out_dir(int offsetx,int offsety)
                 target_mid_line[i][0] = l_points[i][0] + offsetx;
                 target_mid_line[i][1] = l_points[i][1];
             }
-            start_y = l_first_bend_y - offsety;
+            start_y = l_first_bend_y - offsety-5;
         }
         if (find_start(start_y, 10)) {
             forward();
@@ -1277,7 +1285,7 @@ void fill_roundabout_out_dir(int offsetx,int offsety)
                 target_mid_line[i][0] = r_points[i][0] - offsetx;
                 target_mid_line[i][1] = r_points[i][1];
             }
-            start_y = r_first_bend_y - offsety;
+            start_y = r_first_bend_y - offsety-5;
         }
         if (find_start(start_y, 10)) {
             forward();
@@ -1462,6 +1470,7 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
                         TeamPixel *near_mid, int *element, int *stage)
 {
     *element = *stage = -1;
+    reset_lrxy();
     if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
         frame->height != APP_HEIGHT || frame->stride < frame->width)
         return false;
