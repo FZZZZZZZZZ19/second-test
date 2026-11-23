@@ -1142,7 +1142,7 @@ void fill_crossing_dir(int offsety)
     }
     reset_target_line();
     int i = 0;
-    int y_start = SCUT_IMAGE_H-3-offsety-5;
+    int y_start = SCUT_IMAGE_H-3-offsety-8;
     if(l_first_bend_y !=-1 && r_first_bend_y !=-1)
     {
         for(i=0;i<limit;i++)
