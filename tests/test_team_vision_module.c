@@ -91,6 +91,29 @@ int main(void) {
         else
             assert(fabsf(request.omega_raw)<.001f);
     }
+    for (int turn=-1;turn<=1;turn+=2) {
+        VisionOutput projected={.session_id=9,.frame_id=1,.speed_cap_mps=1};
+        const float far_x[3]={94,94,94+60*turn}, far_y[3]={100,80,80};
+        assert(vision_project_path(&entry,far_x,far_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(!projected.near_transverse && fabsf(projected.heading_rad)<1e-5f);
+        assert(projected.speed_cap_mps==1);
+        const float near_x[3]={94,94+30*turn,94+60*turn}, near_y[3]={100,100,100};
+        assert(vision_project_path(&entry,near_x,near_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(projected.near_transverse && projected.curvature==0);
+        assert(fabsf(projected.heading_rad-turn*1.57079633f)<1e-5f);
+        path_control_reset(&control,9);
+        assert(control_path_step(&control,&projected,&entry,&request));
+        assert(-turn*request.omega_raw>0 && request.speed_cap_mps==entry.speed_corner);
+        const float slight_back_y[3]={100,101,101};
+        assert(vision_project_path(&entry,near_x,slight_back_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(projected.near_transverse && fabsf(projected.heading_rad-turn*1.57079633f)<1e-5f);
+        const float reverse_y[3]={100,110,110};
+        assert(!vision_project_path(&entry,near_x,reverse_y,VISION_FORWARD_OFFSET_M,&projected));
+        const float folded_x[3]={94,94+60*turn,94+20*turn};
+        assert(!vision_project_path(&entry,folded_x,near_y,VISION_FORWARD_OFFSET_M,&projected));
+        const float duplicate_x[3]={94,94,94+60*turn};
+        assert(!vision_project_path(&entry,duplicate_x,near_y,VISION_FORWARD_OFFSET_M,&projected));
+    }
     stripe(112);
     frame.frame_id++;
     params.ground_h2 -= .2f;

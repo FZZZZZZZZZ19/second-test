@@ -20,5 +20,6 @@ typedef struct {
     float lateral_m, forward_m, curvature; /* forward_m is signed after origin shift. */
     float heading_rad; /* Ground direction from near to middle sample, right positive. */
     VisionElementDebug element_debug;
+    bool near_transverse; /* Close segment is sideways and uses heading-only steering geometry. */
 } VisionOutput;
 #endif

@@ -3,6 +3,7 @@
 #include "../vision/A_vision/vision_all.h"
 #include "vehicle_calibration.h"
 #include "zf_common_headfile.h"
+#include <math.h>
 AppParam g_app_param;
 static PathControlState path;
 static uint32_t pipeline_session;
@@ -62,7 +63,9 @@ void app_main_poll(void) {
             team_vision_reset();
         if ((snapshot.mode == RUN_TUNE_WAIT || snapshot.mode == RUN_TUNE_RUNNING) &&
             observation.valid && !observation.stop_requested)
-            observation.speed_cap_mps = g_app_param.tune_speed_mps;
+            observation.speed_cap_mps = observation.near_transverse
+                ? fminf(g_app_param.tune_speed_mps, observation.speed_cap_mps)
+                : g_app_param.tune_speed_mps;
         observation.reset_derivative=observation.state!=previous_track_state;
         previous_track_state=observation.state;
         MotionRequest request;

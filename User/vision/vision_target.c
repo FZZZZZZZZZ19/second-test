@@ -34,6 +34,9 @@ bool vision_target_step(const VisionFeatures *f,const TrackDecision *d,const App
 
 bool vision_project_path(const AppParam *p,const float u[3],const float v[3],float forward_offset_m,VisionOutput *o) {
     o->valid=false;
+    o->near_transverse=false;
+    if (!isfinite(o->speed_cap_mps) || o->speed_cap_mps < 0)
+        return false;
     float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
     for(unsigned i=0;i<8;i++)if(!isfinite(h[i]))return false;
     float det=h[0]*(h[4]-h[5]*h[7])-h[1]*(h[3]-h[5]*h[6])+h[2]*(h[3]*h[7]-h[4]*h[6]);
@@ -45,17 +48,29 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],flo
             return false;
         z[i] -= forward_offset_m;
     }
-    if(!(z[0]<z[1]&&z[1]<z[2]))return false;
-    float a=hypotf(z[1]-z[0],x[1]-x[0]);
-    float b=hypotf(z[2]-z[1],x[2]-x[1]);
-    float c=hypotf(z[2]-z[0],x[2]-x[0]);
+    const float tolerance_m=.005f;
+    float dx1=x[1]-x[0], dz1=z[1]-z[0];
+    float dx2=x[2]-x[1], dz2=z[2]-z[1];
+    bool near_transverse=fabsf(dz1)<=tolerance_m && fabsf(dx1)>=tolerance_m;
+    bool far_transverse=fabsf(dz2)<=tolerance_m && fabsf(dx2)>=tolerance_m;
+    if ((dz1<=0 && !near_transverse) || (dz2<=0 && !far_transverse))
+        return false;
+    float a=hypotf(dz1,dx1), b=hypotf(dz2,dx2), c=hypotf(dz1+dz2,dx1+dx2);
     float denominator=a*b*c;
-    if(!isfinite(denominator)||denominator<1e-12f)return false;
+    if(!isfinite(denominator)||a<tolerance_m||b<tolerance_m||c<tolerance_m)return false;
+    /* The samples stay in contour order. Reject a fold-back, but keep a right angle. */
+    if ((near_transverse || far_transverse) && dx1*dx2+dz1*dz2 < -.5f*a*b)
+        return false;
     o->lateral_m=x[0]; o->forward_m=z[0];
-    o->heading_rad=atan2f(x[1]-x[0],z[1]-z[0]);
+    o->heading_rad=atan2f(dx1,fmaxf(dz1,0));
     /* Signed circumcircle curvature; forward then right gives right-positive. */
-    o->curvature=2*((z[1]-z[0])*(x[2]-x[0])-(x[1]-x[0])*(z[2]-z[0]))/denominator;
-    o->valid=isfinite(o->curvature)&&isfinite(o->heading_rad)&&
-             isfinite(o->speed_cap_mps)&&o->speed_cap_mps>=0;
+    o->curvature=near_transverse ? 0 : 2*(dz1*dx2-dx1*dz2)/denominator;
+    if (near_transverse) {
+        if (!isfinite(p->speed_corner) || p->speed_corner < 0)
+            return false;
+        o->speed_cap_mps=fminf(o->speed_cap_mps,p->speed_corner);
+        o->near_transverse=true;
+    }
+    o->valid=isfinite(o->curvature)&&isfinite(o->heading_rad);
     return o->valid;
 }
