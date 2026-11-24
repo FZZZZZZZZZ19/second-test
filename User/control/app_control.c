@@ -14,6 +14,8 @@ static uint32_t previous_us, tune_since;
 static uint32_t tune_retry_last_frame;
 static unsigned tune_retry_frames;
 static bool tune_continuous;
+static enum { SEARCH_OFF, SEARCH_WAITING, SEARCH_MOVING } tune_search;
+static float tune_search_origin_m[2];
 static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
@@ -51,15 +53,30 @@ static void fault(StopReason r) {
     memset(&status.targets, 0, sizeof(status.targets));
     status.duty[0] = status.duty[1] = 0;
 }
-static void tune_wait(uint32_t now, StopReason reason) {
+static void tune_wait(uint32_t now, StopReason reason, bool search) {
     status.mode = RUN_TUNE_WAIT;
     status.reason = reason;
     tune_since = now;
+    tune_search = search ? SEARCH_WAITING : SEARCH_OFF;
+    memcpy(tune_search_origin_m, status.feedback.rolling_m, sizeof tune_search_origin_m);
     tune_retry_frames = 0;
     status.session_id++;
     memset(&good, 0, sizeof(good));
     status.vision_age_ms = UINT32_MAX;
     yaw_integral = 0;
+}
+static void tune_search_step(uint32_t now, bool recent_frame, bool path_valid, bool stopped) {
+    if (tune_search == SEARCH_OFF)
+        return;
+    float left_m = fabsf(status.feedback.rolling_m[0] - tune_search_origin_m[0]);
+    float right_m = fabsf(status.feedback.rolling_m[1] - tune_search_origin_m[1]);
+    if (!(left_m < APP_START_SEARCH_DISTANCE_M && right_m < APP_START_SEARCH_DISTANCE_M) ||
+        now - tune_since >= APP_START_SEARCH_MAX_MS ||
+        (tune_search == SEARCH_MOVING && !recent_frame)) {
+        tune_search = SEARCH_OFF;
+    } else if (tune_search == SEARCH_WAITING && stopped && recent_frame && !path_valid) {
+        tune_search = SEARCH_MOVING;
+    }
 }
 void app_control_tick_isr(void) {
     board_clock_tick();
@@ -82,10 +99,12 @@ void app_control_tick_isr(void) {
     status.config_ok = param_can_arm(&g_app_param, CAL_FULL_RACE != 0) && camera_ok &&
                        (!gyro_enabled || gyro_ready) && CAL_VISION_V2_VALIDATED &&
                        !CAL_FULL_RACE;
-    if (elapsed == 0 || elapsed > 20000) {
+    bool timing_ok = elapsed != 0 && elapsed <= 20000;
+    if (!timing_ok) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
             status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG ||
-            status.mode == RUN_TUNE_RUNNING)
+            status.mode == RUN_TUNE_RUNNING ||
+            (status.mode == RUN_TUNE_WAIT && tune_search == SEARCH_MOVING))
             fault(STOP_TIMING);
         dt = .005f;
     }
@@ -115,7 +134,7 @@ void app_control_tick_isr(void) {
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_TRACK_TUNE | REQ_TRACK_START))) {
         tune_continuous = (requests & REQ_TRACK_START) != 0;
-        tune_wait(now, STOP_NONE);
+        tune_wait(now, STOP_NONE, false);
         if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
         else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
         else if (!status.feedback.valid || !(fabsf(status.feedback.speed_mps[0]) < .03f) ||
@@ -164,10 +183,15 @@ void app_control_tick_isr(void) {
         else if (!status.feedback.valid) fault(STOP_ENCODER);
         else if (status.mode == RUN_TUNE_WAIT) {
             bool retry = status.reason == STOP_VISION;
+            bool stopped = fabsf(status.feedback.speed_mps[0]) < .03f &&
+                           fabsf(status.feedback.speed_mps[1]) < .03f;
             bool can_start = tune_fresh && usable && incoming.frame_id == good.frame_id &&
                              isfinite(incoming.omega_raw) && isfinite(incoming.speed_cap_mps) &&
-                             good.speed_cap_mps > 0 && fabsf(status.feedback.speed_mps[0]) < .03f &&
-                             fabsf(status.feedback.speed_mps[1]) < .03f;
+                             good.speed_cap_mps > 0;
+            bool search_frame = timing_ok && current && now - incoming.capture_ms <= APP_TUNE_FRAME_AGE_MS &&
+                                (!incoming.valid || can_start);
+            tune_search_step(now, search_frame, incoming.valid, stopped);
+            can_start = can_start && (stopped || tune_search == SEARCH_MOVING);
             if (retry) {
                 if (!can_start)
                     tune_retry_frames = 0;
@@ -182,21 +206,24 @@ void app_control_tick_isr(void) {
                 status.reason = STOP_NONE;
                 tune_since = now;
             } else if (!retry && now - tune_since >= APP_TUNE_WAIT_MS)
-                tune_wait(now, STOP_VISION);
+                tune_wait(now, STOP_VISION, false);
         } else if (!tune_fresh || !usable)
-            tune_wait(now, STOP_VISION);
+            tune_wait(now, STOP_VISION, tune_continuous);
         if (status.mode == RUN_TUNE_RUNNING && !tune_continuous)
             status.tune_remaining_ms = duration_ms - (now - tune_since);
     }
+    bool searching = status.mode == RUN_TUNE_WAIT && tune_search == SEARCH_MOVING;
     if (status.mode == RUN_DUTY_DEBUG) {
         /* Explicit open-loop diagnostic command, independent of racing duty_limit. */
         status.duty[0] = status.duty[1] = debug_duty_ticks / 10000.0f;
         board_motor_write_en(SIDE_LEFT, debug_duty_ticks);
         board_motor_write_en(SIDE_RIGHT, debug_duty_ticks);
-    } else if (status.mode == RUN_SPEED_DEBUG) {
+    } else if (status.mode == RUN_SPEED_DEBUG || searching) {
         if (!status.feedback.valid || !param_valid(&g_app_param)) fault(STOP_ENCODER);
         else {
-            bool ok = motion_plan_step(&plan, &g_app_param, g_app_param.debug_speed_mps, 0,
+            float speed = searching ? fminf(APP_START_SEARCH_SPEED_MPS, g_app_param.tune_speed_mps)
+                                    : g_app_param.debug_speed_mps;
+            bool ok = motion_plan_step(&plan, &g_app_param, speed, 0,
                                        dt, false, &status.targets);
             if (ok) ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                 g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
@@ -275,7 +302,7 @@ void app_control_tick_isr(void) {
     if (used_us > 4000) {
         status.overruns++;
         if (status.overruns >= 3 && (status.mode == RUN_RUNNING || status.mode == RUN_DUTY_DEBUG ||
-                                   status.mode == RUN_SPEED_DEBUG || status.mode == RUN_TUNE_RUNNING))
+                                   status.mode == RUN_SPEED_DEBUG || status.mode == RUN_TUNE_RUNNING || searching))
             fault(STOP_TIMING);
     }
     app_exchange_publish_control(&status);

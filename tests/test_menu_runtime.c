@@ -39,6 +39,10 @@ static void publish_tune_frame(void) {
     motion=(MotionRequest){.session_id=output.session_id,.frame_id=++frame_id,.capture_ms=board_time_ms(),
                            .valid=true,.confidence=60,.speed_cap_mps=1,.omega_raw=-.4f};
 }
+static void publish_lost_frame(void) {
+    publish_tune_frame();
+    motion.valid=false;
+}
 static void check_continuous_start(void) {
     feedback.valid=true;
     app_control_camera_ready(true);
@@ -51,11 +55,49 @@ static void check_continuous_start(void) {
         assert(output.mode==RUN_TUNE_RUNNING && output.reason==STOP_NONE && output.tune_remaining_ms==0);
     }
     assert(duty[0]>0 && duty[1]>0);
+    feedback.speed_mps[0]=feedback.speed_mps[1]=.12f;
     motion.valid=false; tick(0);
     assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
-    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    publish_lost_frame(); tick(0);
+    assert(duty[0]==0 && duty[1]==0); /* Wait for the previous run to slow down. */
+    feedback.speed_mps[0]=feedback.speed_mps[1]=0;
+    for (unsigned i=0;i<80;i++) { publish_lost_frame(); tick(0); }
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]>0 && duty[1]>0);
+    assert(fabsf(output.targets.left_mps-APP_START_SEARCH_SPEED_MPS)<1e-5f);
+    assert(output.targets.left_mps==output.targets.right_mps);
+    feedback.speed_mps[0]=feedback.speed_mps[1]=APP_START_SEARCH_SPEED_MPS;
+    publish_tune_frame(); tick(0);
+    for (unsigned i=0;i<5;i++) tick(0);
+    assert(output.mode==RUN_TUNE_WAIT); /* One repeated frame cannot restore steering. */
+    for (unsigned i=1;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
     for (unsigned i=0;i<200;i++) { publish_tune_frame(); tick(0); }
     assert(output.mode==RUN_TUNE_RUNNING && output.reason==STOP_NONE && output.tune_remaining_ms==0);
+    publish_lost_frame(); tick(0);
+    feedback.speed_mps[0]=feedback.speed_mps[1]=0;
+    publish_lost_frame(); tick(0);
+    assert(duty[0]>0 && duty[1]>0);
+    feedback.rolling_m[0]+=APP_START_SEARCH_DISTANCE_M;
+    publish_lost_frame(); tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+    publish_lost_frame(); tick(0);
+    assert(duty[0]==0 && duty[1]==0); /* Travel limit does not restart the search. */
+    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    assert(output.mode==RUN_TUNE_RUNNING);
+    publish_lost_frame(); tick(0);
+    for (unsigned i=0;i<=APP_START_SEARCH_MAX_MS/APP_CONTROL_PERIOD_MS;i++) {
+        publish_lost_frame(); tick(0);
+    }
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0); /* Stalled encoder distance. */
+    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    publish_lost_frame(); tick(0);
+    publish_lost_frame(); tick(0);
+    assert(duty[0]>0 && duty[1]>0);
+    for (unsigned i=0;i<=APP_TUNE_FRAME_AGE_MS/APP_CONTROL_PERIOD_MS;i++) tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0); /* Camera stops delivering frames. */
+    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    publish_lost_frame(); tick(0);
+    publish_lost_frame(); tick(0);
+    assert(duty[0]>0 && duty[1]>0);
     tick(REQ_HALT);
     assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
 }
@@ -84,6 +126,9 @@ static void check_tune(void) {
     motion.valid=false; tick(0);
     assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
     assert(output.session_id!=old_session);
+    publish_lost_frame(); tick(0);
+    assert(duty[0]==0 && duty[1]==0); /* Timed tune retries from a standstill. */
+    motion.session_id=old_session;
     motion.valid=true; tick(0);
     assert(output.mode==RUN_TUNE_WAIT); /* Ignore frames from the interrupted run. */
     feedback.speed_mps[0]=.1f;
@@ -213,7 +258,7 @@ int main(void) {
     check_continuous_start();
     check_tune();
     check_gyro();
-    puts("PASS: continuous start beyond the tune duration, vision retry and halt");
+    puts("PASS: continuous start, bounded line search, vision recovery and halt");
     puts("PASS: gyro calibration, rate and angle signs, zero, PI limits, timeout, error, bypass and foreground I2C");
     puts("PASS: track tune fresh start, steering, speed cap, timeout, stale/lost frame, feedback and halt; real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault");
     return 0;
