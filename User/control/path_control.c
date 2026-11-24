@@ -50,11 +50,12 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
         o->omega_raw *= 1.5f;
     else if (!v->corner_direction && v->has_p0 && isfinite(v->p0_x_px) && isfinite(p->center_x_px)) {
         const float center_deadband_px = 3.0f;
-        const float centering_radps_per_px = .05f;
-        const float max_centering_omega = 1.2f;
+        const float centering_radps_per_px = .09f;
+        const float max_centering_omega = 1.8f;
         float offset_px = v->p0_x_px - p->center_x_px;
         float correction = fmaxf(fabsf(offset_px) - center_deadband_px, 0) * centering_radps_per_px;
         o->omega_raw -= copysignf(fminf(correction, max_centering_omega), offset_px);
+        o->recentering = correction > 0;
     }
     o->valid = isfinite(o->omega_raw);
     return o->valid;

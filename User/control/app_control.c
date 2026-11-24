@@ -228,7 +228,7 @@ void app_control_tick_isr(void) {
             float speed = searching ? fminf(APP_START_SEARCH_SPEED_MPS, g_app_param.tune_speed_mps)
                                     : g_app_param.debug_speed_mps;
             bool ok = motion_plan_step(&plan, &g_app_param, speed, 0,
-                                       dt, false, false, &status.targets);
+                                       dt, false, STEERING_NORMAL, &status.targets);
             if (ok) ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                 g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
                 g_app_param.integral_limit, g_app_param.duty_limit, &status.duty[0]);
@@ -258,14 +258,15 @@ void app_control_tick_isr(void) {
             }
             bool ok = true;
             StopReason failure = STOP_NONFINITE;
-            bool sharp_turn = good.sharp_turn;
+            SteeringMode steering = good.sharp_turn ? STEERING_SHARP_TURN :
+                                    good.recentering ? STEERING_RECENTER : STEERING_NORMAL;
             if (gyro_enabled && gyro_ready && !stopping && speed > 0 &&
                 gyro_corner_step(&gyro_corner, good.corner_direction, good.frame_id, now,
                                  status.gyro.angle_rad,
                                  .5f * (status.feedback.rolling_m[0] + status.feedback.rolling_m[1]),
                                  &omega)) {
                 speed = fminf(speed, g_app_param.speed_corner);
-                sharp_turn = true;
+                steering = STEERING_SHARP_TURN;
             }
             status.omega_target_radps = omega;
             if (gyro_enabled && !stopping) {
@@ -280,7 +281,7 @@ void app_control_tick_isr(void) {
             status.omega_command_radps = ok ? omega : 0;
             if (ok)
                 ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping,
-                                      sharp_turn, &status.targets);
+                                      steering, &status.targets);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,

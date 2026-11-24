@@ -94,7 +94,7 @@ static void pi_and_motion(void) {
     for (unsigned i = 0; i < 1500; i++) {
         float a = plan.left, b = plan.right;
         float requested = i < 500 ? .3f : 0, omega = i % 2 ? 100 : -100;
-        CHECK(motion_plan_step(&plan, &p, requested, omega, .005f, false, false, &target));
+        CHECK(motion_plan_step(&plan, &p, requested, omega, .005f, false, STEERING_NORMAL, &target));
         CHECK(plan.left >= 0 && plan.right >= 0 && plan.left <= p.speed_limit_mps + .00001f &&
               plan.right <= p.speed_limit_mps + .00001f);
         CHECK(plan.left - a <= p.accel_mps2 * .005f + .00001f &&
@@ -107,13 +107,20 @@ static void pi_and_motion(void) {
     for (int turn = -1; turn <= 1; turn += 2) {
         MotionPlanState normal = {.left=.12f,.right=.12f};
         MotionPlanState sharp = normal;
-        SideTargets normal_target;
-        CHECK(motion_plan_step(&normal, &p, .12f, turn*3.0f, .005f, false, false, &normal_target));
-        CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, true, &target));
+        MotionPlanState recenter = normal;
+        SideTargets normal_target, recenter_target;
+        CHECK(motion_plan_step(&normal, &p, .12f, turn*3.0f, .005f, false, STEERING_NORMAL, &normal_target));
+        CHECK(motion_plan_step(&recenter, &p, .12f, turn*3.0f, .005f, false, STEERING_RECENTER, &recenter_target));
+        NEAR(recenter_target.model_omega_radps, 2 * normal_target.model_omega_radps);
+        NEAR(recenter_target.model_v_mps, .12f);
+        for (unsigned i = 0; i < 120; i++)
+            CHECK(motion_plan_step(&recenter, &p, .12f, turn*3.0f, .005f, false, STEERING_RECENTER, &recenter_target));
+        NEAR(fminf(recenter_target.left_mps, recenter_target.right_mps), .12f*p.inner_ratio);
+        CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, STEERING_SHARP_TURN, &target));
         NEAR(target.model_omega_radps, 4 * normal_target.model_omega_radps);
         NEAR(target.model_v_mps, .12f);
         for (unsigned i = 0; i < 120; i++)
-            CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, true, &target));
+            CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, STEERING_SHARP_TURN, &target));
         NEAR(fminf(target.left_mps, target.right_mps), 0);
         NEAR(fmaxf(target.left_mps, target.right_mps), .24f);
         NEAR(turn * target.model_omega_radps, .24f / p.track_m);
@@ -121,12 +128,12 @@ static void pi_and_motion(void) {
     p.speed_limit_mps = 1;
     p.accel_mps2 = p.decel_mps2 = 100;
     plan.left = plan.right = .6f;
-    CHECK(motion_plan_step(&plan, &p, .6f, 1, .005f, false, false, &target));
+    CHECK(motion_plan_step(&plan, &p, .6f, 1, .005f, false, STEERING_NORMAL, &target));
     NEAR(plan.left, .53f);
     NEAR(plan.right, .67f);
-    CHECK(!motion_plan_step(&plan, &p, NAN, 1, .005f, false, false, &target));
+    CHECK(!motion_plan_step(&plan, &p, NAN, 1, .005f, false, STEERING_NORMAL, &target));
     for (unsigned i = 0; i < 5; i++)
-        CHECK(motion_plan_step(&plan, &p, 0, 100, .005f, true, true, &target));
+        CHECK(motion_plan_step(&plan, &p, 0, 100, .005f, true, STEERING_SHARP_TURN, &target));
     NEAR(target.model_omega_radps, 0);
     groups++;
 }

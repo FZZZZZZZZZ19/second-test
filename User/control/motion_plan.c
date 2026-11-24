@@ -3,7 +3,7 @@
 #include <math.h>
 #include <string.h>
 bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float omega, float dt,
-                      bool stop, bool sharp_turn, SideTargets *out) {
+                      bool stop, SteeringMode steering, SideTargets *out) {
     if (!s || !p || !out)
         return false;
     memset(out, 0, sizeof(*out));
@@ -18,8 +18,8 @@ bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float 
     if (stop) {
         omega = oldv > .001f ? (s->right - s->left) / b * (v / oldv) : 0;
     }
-    bool boost = sharp_turn && !stop;
-    float inner_ratio = boost ? 0 : p->inner_ratio;
+    bool sharp_turn = steering == STEERING_SHARP_TURN && !stop;
+    float inner_ratio = sharp_turn ? 0 : p->inner_ratio;
     float wlim = 2 * (1 - inner_ratio) * v / b;
     float w = app_clamp(omega, -wlim, wlim);
     if (v < .0001f) {
@@ -34,9 +34,10 @@ bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float 
     float al = (dl >= 0 ? p->accel_mps2 : p->decel_mps2) * dt,
           ar = (dr >= 0 ? p->accel_mps2 : p->decel_mps2) * dt;
     /* Relax wheel ramps only for changes that increase the commanded turn. */
-    const float sharp_turn_ramp_multiplier = 4.0f;
-    if (boost && dl * w < 0) al *= sharp_turn_ramp_multiplier;
-    if (boost && dr * w > 0) ar *= sharp_turn_ramp_multiplier;
+    float steering_ramp_multiplier = sharp_turn ? 4.0f :
+                                     steering == STEERING_RECENTER && !stop ? 2.0f : 1.0f;
+    if (dl * w < 0) al *= steering_ramp_multiplier;
+    if (dr * w > 0) ar *= steering_ramp_multiplier;
     if (fabsf(dl) > al)
         lam = fminf(lam, al / fabsf(dl));
     if (fabsf(dr) > ar)

@@ -4,8 +4,9 @@
 #include "vision_control.h"
 bool speed_pi_step(SpeedPiState *s, float target, float measured, float dt, float kp, float ki,
                    float ff, float integral_limit, float duty_limit, float *out);
+typedef enum { STEERING_NORMAL, STEERING_SHARP_TURN, STEERING_RECENTER } SteeringMode;
 bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float omega, float dt,
-                      bool stop, bool sharp_turn, SideTargets *out);
+                      bool stop, SteeringMode steering, SideTargets *out);
 void path_control_reset(PathControlState *s, uint32_t session);
 bool control_path_step(PathControlState *s, const VisionOutput *v, const AppParam *p,
                        MotionRequest *out);
