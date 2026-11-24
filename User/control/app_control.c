@@ -224,7 +224,7 @@ void app_control_tick_isr(void) {
             float speed = searching ? fminf(APP_START_SEARCH_SPEED_MPS, g_app_param.tune_speed_mps)
                                     : g_app_param.debug_speed_mps;
             bool ok = motion_plan_step(&plan, &g_app_param, speed, 0,
-                                       dt, false, &status.targets);
+                                       dt, false, false, &status.targets);
             if (ok) ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                 g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,
                 g_app_param.integral_limit, g_app_param.duty_limit, &status.duty[0]);
@@ -264,7 +264,8 @@ void app_control_tick_isr(void) {
                 yaw_integral = 0;
             status.omega_command_radps = ok ? omega : 0;
             if (ok)
-                ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping, &status.targets);
+                ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping,
+                                      good.sharp_turn, &status.targets);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,

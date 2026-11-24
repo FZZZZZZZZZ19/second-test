@@ -43,6 +43,8 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->omega_raw = -speed * v->curvature - p->heading_gain_per_s * v->heading_rad
                    - (p->lateral_kp * e + p->lateral_kd * s->derivative);
     o->speed_cap_mps = v->speed_cap_mps;
+    const float sharp_turn_heading_rad = .78539816f; /* 45 degrees */
+    o->sharp_turn = v->near_transverse || fabsf(v->heading_rad) >= sharp_turn_heading_rad;
     o->valid = isfinite(o->omega_raw);
     return o->valid;
 }
