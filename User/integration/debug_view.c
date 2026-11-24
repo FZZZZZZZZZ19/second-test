@@ -11,8 +11,8 @@
 enum { TUNE_PREVIEW_PERIOD_MS = 100 };
 static MenuModel menu;
 static MenuPage drawn_page;
-static uint32_t last_screen, last_image, last_vofa, start_ms;
-static bool vofa_enabled, start_pending, tune_active;
+static uint32_t last_screen, last_image, last_vofa;
+static bool vofa_enabled, tune_active;
 static VisionElementDebug tune_element;
 static uint32_t tune_request_session;
 static char message[27] = "U/D OK; K1 back";
@@ -42,7 +42,7 @@ static void draw_tune_element(void) {
 }
 static void note(const char *text) { snprintf(message, sizeof message, "%.26s", text); }
 static void stop_all(const ControlSnapshot *s) {
-    start_pending = false; vofa_enabled = false; tune_active = false;
+    vofa_enabled = false; tune_active = false;
     app_exchange_request(s->mode == RUN_FAULT ? REQ_RESET : REQ_HALT);
     (void)camera_frame_set_running(false);
     note("motor+camera stopped");
@@ -76,15 +76,6 @@ static bool save_parameters(const AppParam *candidate,const ControlSnapshot *s) 
 }
 static void action(MenuAction a, const ControlSnapshot *s) {
     switch (a) {
-    case MENU_START:
-        if (s->mode != RUN_STATIC_DEBUG) { note("stop before start"); break; }
-        if ((g_app_param.flags & APP_FLAG_GYRO_LOOP) && s->gyro.status != GYRO_READY) {
-            note("gyro not ready"); break;
-        }
-        if (!camera_frame_set_running(true)) { note("camera init failed"); break; }
-        app_control_camera_ready(true);
-        start_pending = true; start_ms = board_time_ms();
-        note("checking start..."); break;
     case MENU_TRACK_TUNE:
         tune_element = (VisionElementDebug){0};
         if (s->mode != RUN_STATIC_DEBUG) { note("stop first"); break; }
@@ -198,7 +189,7 @@ static void render(const ControlSnapshot *s, uint32_t now) {
         snprintf(text,sizeof text,"ISR >4ms %lu",(unsigned long)s->overruns); line(8,text);
         line(9,"OK:zero K1:back"); return;
     }
-    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE) {
+    if (menu.page == MENU_IMAGE) {
         if (now - last_image > 1000) {
             line(1, message);
             if(camera_frame_init_status()) {
@@ -274,15 +265,6 @@ void debug_view_poll(const ControlSnapshot *s) {
         }
     }
     action(a, s);
-    if (start_pending) {
-        if (s->mode == RUN_RUNNING) { start_pending = false; note("race running"); }
-        else if (s->mode == RUN_FAULT || now - start_ms > 2500) {
-            start_pending = false; note("blocked: CAL/vision");
-            app_exchange_request(REQ_HALT);
-        } else if (s->mode == RUN_STATIC_DEBUG && s->config_ok) {
-            app_exchange_request(REQ_READY);
-        } else if (s->mode == RUN_READY) app_exchange_request(REQ_START);
-    }
     if (vofa_enabled && now - last_vofa >= 20) {
         last_vofa = now;
         uint8_t packet[20]; vofa_pack(s, packet);
@@ -298,7 +280,7 @@ void debug_view_frame(const FrameView *f, const ControlSnapshot *s, const Vision
     bool tune_preview = menu.page == MENU_TUNE_IMAGE && tune_active &&
         (s->mode == RUN_TUNE_WAIT || s->mode == RUN_TUNE_RUNNING) &&
         now - last_image >= TUNE_PREVIEW_PERIOD_MS;
-    if (menu.page == MENU_RACE_IMAGE || menu.page == MENU_IMAGE || tune_preview) {
+    if (menu.page == MENU_IMAGE || tune_preview) {
         last_image = now;
         if (menu.page != drawn_page) { clear_screen(); drawn_page = menu.page; }
         menu_display_camera(f->pixels, f->width, f->height, f->stride);

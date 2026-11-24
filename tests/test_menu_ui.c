@@ -93,9 +93,11 @@ int main(void) {
     snapshot("build/host/menu-main.pgm");
     assert(screen[16][0]==0 && screen[48][0]==255); /* selected row is inverted */
     unsigned tiles_before=rgb_tiles; poll(100); assert(rgb_tiles==tiles_before); /* static UI does not repaint */
-    hold(); assert(capture && (requests&REQ_READY));
-    requests=0; s.mode=RUN_READY; poll(5); assert(requests&REQ_START);
-    s.mode=RUN_RUNNING; poll(5);
+    hold(); assert(capture && requests==REQ_TRACK_TUNE);
+    assert_tune_element_row("state:- flag:-");
+    requests=0; s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
+    assert(capture && requests==0);
+    s.mode=RUN_TUNE_RUNNING; poll(5);
     mt9v03x_image[0][0]=11; mt9v03x_image[119][187]=59;
     mt9v03x_image[0][29]=255; mt9v03x_image[0][30]=17;
     mt9v03x_image[0][157]=23; mt9v03x_image[0][158]=255;
@@ -107,10 +109,14 @@ int main(void) {
     assert(f.pixels[157]==23 && f.pixels[158]==255 && f.pixels[119*188+30]==31 && f.pixels[120*188-1]==59);
     mt9v03x_image[0][30]=55; mt9v03x_finish_flag=1; camera_frame_on_done_isr();
     assert(f.pixels[0]==11 && f.pixels[30]==17); /* owned frame stays stable */
-    debug_view_frame(&f,&s,v,(VisionElementDebug){0}); assert(images==1);
+    debug_view_frame(&f,&s,v,(VisionElementDebug){4,11,true});
+    assert(images==1 && red_lines==4);
+    assert_tune_element_row("state:4 flag:11");
     FrameView next_frame=f; next_frame.frame_id++;
     poll(33); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});
-    assert(images==2); /* New frames must not be throttled to 5 Hz. */
+    assert(images==1); /* Main-menu start uses track tune's preview period. */
+    poll(67); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){0});
+    assert(images==2);
     unsigned restarts=resumes; camera_frame_release(f.frame_id);
     assert(capture && resumes==restarts); /* no per-frame DMA reset */
     back(); assert(!capture && (requests&REQ_HALT));
@@ -192,9 +198,9 @@ int main(void) {
     assert(capture);
     s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
     assert(capture);
-    unsigned tune_images=images;
+    unsigned tune_images=images, tune_red_lines=red_lines;
     debug_view_frame(&f,&s,v,(VisionElementDebug){4,11,true});
-    assert(images==tune_images+1 && red_lines==4);
+    assert(images==tune_images+1 && red_lines==tune_red_lines+4);
     assert_tune_element_row("state:4 flag:11");
     s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
     debug_view_frame(&f,&s,v,(VisionElementDebug){2,3,true});
@@ -225,6 +231,6 @@ int main(void) {
     hold(); assert(gyro_resets==1);
     back(); click(); hold(); /* gyro sign */
     assert(param_decode(record,&loaded,&sequence) && (loaded.flags & APP_FLAG_GYRO_INVERT));
-    puts("PASS: real UI start handshake, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
+    puts("PASS: real UI start and track tune, frame pause/resume, save/reload, VOFA guard/start/stop, render bounds");
     return 0;
 }

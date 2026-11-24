@@ -63,7 +63,7 @@ unsigned menu_count(const MenuModel *m) {
 }
 const char *menu_title(const MenuModel *m) {
     static const char *const titles[] = {"V" APP_VERSION " MAIN","para","vision","control parameters",
-        "control","number input","start / camera","image","motor test","hardware","camera calib","track tune","gyro view"};
+        "control","number input","image","motor test","hardware","camera calib","track tune","gyro view"};
     return m->page == MENU_KEYPAD ? fields[m->field].name : titles[m->page];
 }
 const char *menu_label(const MenuModel *m, unsigned i) {
@@ -96,6 +96,11 @@ static void return_to(MenuModel *m, MenuPage p) {
     m->page=p; m->selected=m->cursor[p];
     if(m->selected>=menu_count(m)) m->selected=0;
 }
+static MenuAction enter_track_tune(MenuModel *m) {
+    m->parent = m->page;
+    enter(m, MENU_TUNE_IMAGE);
+    return MENU_TRACK_TUNE;
+}
 static void edit(MenuModel *m, unsigned field) {
     m->parent = m->page; m->field = field; m->input[0] = 0; m->input_error = false;
     enter(m, MENU_KEYPAD);
@@ -107,8 +112,9 @@ MenuAction menu_back(MenuModel *m) {
     case MENU_VISION: case MENU_PARAMS: case MENU_HARDWARE: return_to(m,MENU_PARA); return MENU_NONE;
     case MENU_CAMERA_CAL: return_to(m,MENU_VISION); return MENU_NONE;
     case MENU_PARA: return_to(m,MENU_MAIN); return MENU_NONE;
-    case MENU_CONTROL: case MENU_RACE_IMAGE: return_to(m,MENU_MAIN); return MENU_STOP;
-    case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
+    case MENU_CONTROL: return_to(m,MENU_MAIN); return MENU_STOP;
+    case MENU_TUNE_IMAGE: return_to(m,m->parent); return MENU_STOP;
+    case MENU_IMAGE: case MENU_LIVE: return_to(m,MENU_CONTROL); return MENU_STOP;
     case MENU_GYRO_VIEW: return_to(m,MENU_CONTROL); return MENU_NONE;
     case MENU_PAGE_COUNT: return MENU_NONE;
     }
@@ -118,7 +124,7 @@ MenuAction menu_confirm(MenuModel *m) {
     unsigned i = m->selected;
     switch (m->page) {
     case MENU_MAIN:
-        if (i == 0) { enter(m, MENU_RACE_IMAGE); return MENU_START; }
+        if (i == 0) return enter_track_tune(m);
         enter(m, i == 1 ? MENU_PARA : MENU_CONTROL); break;
     case MENU_PARA:
         if (i < 2) enter(m, i ? MENU_PARAMS : MENU_VISION);
@@ -143,7 +149,7 @@ MenuAction menu_confirm(MenuModel *m) {
     case MENU_CONTROL:
         if (i == 0 || i == 2) { enter(m, MENU_LIVE); return i ? MENU_VOFA : MENU_RUN30; }
         if (i == 5) { enter(m, MENU_LIVE); return MENU_RUN5; }
-        if (i == 6) { enter(m, MENU_TUNE_IMAGE); return MENU_TRACK_TUNE; }
+        if (i == 6) return enter_track_tune(m);
         if (i == 1) { enter(m, MENU_IMAGE); return MENU_CAMERA; }
         if (i == 7) return MENU_SPEED_LPF;
         if (i == 8) return MENU_GYRO_TOGGLE;
@@ -172,7 +178,7 @@ MenuAction menu_confirm(MenuModel *m) {
         else if (i == 15) return menu_back(m);
         break;
     }
-    case MENU_RACE_IMAGE: case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return menu_back(m);
+    case MENU_IMAGE: case MENU_TUNE_IMAGE: case MENU_LIVE: return menu_back(m);
     case MENU_PAGE_COUNT: return MENU_NONE;
     }
     return MENU_NONE;

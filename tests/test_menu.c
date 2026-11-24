@@ -56,7 +56,9 @@ int main(void) {
     m.field=9; strcpy(m.input,".5"); assert(menu_apply_value(&m,&p));
     assert(p.debug_speed_mps==.5f && p.speed_limit_mps==.4f);
     strcpy(m.input,".25"); assert(menu_apply_value(&m,&p));
-    m.page=MENU_RACE_IMAGE; assert(menu_confirm(&m)==MENU_STOP && m.page==MENU_MAIN);
+    menu_init(&m);
+    assert(menu_confirm(&m)==MENU_TRACK_TUNE && m.page==MENU_TUNE_IMAGE);
+    assert(menu_confirm(&m)==MENU_STOP && m.page==MENU_MAIN && m.selected==0);
     m.selected=2; menu_confirm(&m); assert(m.page==MENU_CONTROL);
     m.selected=2; assert(menu_confirm(&m)==MENU_VOFA && m.page==MENU_LIVE);
     m.selected=1; assert(menu_confirm(&m)==MENU_STOP && m.page==MENU_CONTROL);
@@ -79,13 +81,13 @@ int main(void) {
     way(&k,1); assert(!k.input[0]);
     pick(&k,"BACK"); way(&k,1); assert(k.page==MENU_VISION && k.selected==0);
     way(&k,6); assert(k.page==MENU_VISION && k.selected==0); /* five-way scoped to keypad */
-    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_RACE_IMAGE,MENU_IMAGE,MENU_LIVE,MENU_HARDWARE,MENU_CAMERA_CAL};
-    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_MAIN,MENU_CONTROL,MENU_CONTROL,MENU_PARA,MENU_VISION};
+    const MenuPage pages[]={MENU_MAIN,MENU_PARA,MENU_VISION,MENU_PARAMS,MENU_CONTROL,MENU_KEYPAD,MENU_IMAGE,MENU_LIVE,MENU_HARDWARE,MENU_CAMERA_CAL};
+    const MenuPage parents[]={MENU_MAIN,MENU_MAIN,MENU_PARA,MENU_PARA,MENU_MAIN,MENU_PARAMS,MENU_CONTROL,MENU_CONTROL,MENU_PARA,MENU_VISION};
     for(unsigned j=0;j<sizeof pages/sizeof pages[0];j++) {
         menu_init(&k); k.page=pages[j]; k.parent=MENU_PARAMS;
         MenuAction a=way(&k,3);
         assert(k.page==parents[j] && k.selected==0);
-        assert(a==((pages[j]==MENU_CONTROL || pages[j]==MENU_RACE_IMAGE || pages[j]==MENU_IMAGE || pages[j]==MENU_LIVE)?MENU_STOP:MENU_NONE));
+        assert(a==((pages[j]==MENU_CONTROL || pages[j]==MENU_IMAGE || pages[j]==MENU_LIVE)?MENU_STOP:MENU_NONE));
     }
     MenuModel h; menu_init(&h); h.selected=1; menu_confirm(&h);
     h.selected=2; menu_confirm(&h); assert(h.page==MENU_HARDWARE && menu_count(&h)==11);

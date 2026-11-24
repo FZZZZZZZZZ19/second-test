@@ -39,35 +39,6 @@ static void publish_tune_frame(void) {
     motion=(MotionRequest){.session_id=output.session_id,.frame_id=++frame_id,.capture_ms=board_time_ms(),
                            .valid=true,.confidence=60,.speed_cap_mps=1,.omega_raw=-.4f};
 }
-static void check_start(void) {
-    tick(REQ_READY);
-    assert(output.mode==RUN_STATIC_DEBUG && !output.config_ok); /* Camera stopped. */
-    app_control_camera_ready(true);
-    float wheel_left_m=g_app_param.wheel_left_m;
-    g_app_param.wheel_left_m=0;
-    tick(REQ_READY);
-    assert(output.mode==RUN_STATIC_DEBUG && !output.config_ok);
-    g_app_param.wheel_left_m=wheel_left_m;
-    feedback.valid=false;
-    tick(REQ_READY);
-    assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
-    feedback.valid=true;
-    publish_tune_frame(); tick(REQ_READY);
-    assert(output.mode==RUN_READY && output.config_ok);
-    tick(REQ_START);
-    assert(output.mode==RUN_READY && duty[0]==0 && duty[1]==0); /* Old session. */
-    publish_tune_frame(); motion.capture_ms -= 200; tick(REQ_START);
-    assert(output.mode==RUN_READY && duty[0]==0 && duty[1]==0); /* Stale. */
-    publish_tune_frame(); motion.speed_cap_mps=0; tick(REQ_START);
-    assert(output.mode==RUN_READY && duty[0]==0 && duty[1]==0);
-    publish_tune_frame(); tick(0);
-    motion.valid=false; tick(REQ_START);
-    assert(output.mode==RUN_READY && duty[0]==0 && duty[1]==0);
-    publish_tune_frame(); tick(REQ_START);
-    assert(output.mode==RUN_RUNNING && duty[0]>0 && duty[1]>0);
-    tick(REQ_HALT);
-    assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
-}
 static void check_tune(void) {
     feedback.valid=true;
     g_app_param.tune_duration_s=4.5f;
@@ -75,7 +46,7 @@ static void check_tune(void) {
     app_control_camera_ready(true);
     publish_tune_frame(); /* A valid frame from before the request cannot start the car. */
     tick(REQ_TRACK_TUNE);
-    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+    assert(!output.config_ok && output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
     tick(0);
     assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
     publish_tune_frame(); tick(0);
@@ -219,10 +190,8 @@ int main(void) {
     tick(REQ_RESET); assert(output.mode==RUN_STATIC_DEBUG);
     tick(REQ_RUN30); clock_us+=25000; tick(0); assert(output.mode==RUN_FAULT && duty[0]==0);
     tick(REQ_RESET); tick(REQ_RUN30); tick(REQ_HALT); assert(duty[0]==0 && output.targets.left_mps==0);
-    check_start();
     check_tune();
     check_gyro();
-    puts("PASS: ordinary start readiness, fresh session, invalid frame and halt");
     puts("PASS: gyro calibration, rate and angle signs, zero, PI limits, timeout, error, bypass and foreground I2C");
     puts("PASS: track tune fresh start, steering, speed cap, timeout, stale/lost frame, feedback and halt; real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault");
     return 0;
