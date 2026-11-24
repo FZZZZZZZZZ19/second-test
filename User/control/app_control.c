@@ -78,9 +78,10 @@ void app_control_tick_isr(void) {
     status.omega_target_radps = status.omega_command_radps = 0;
     if (!gyro_enabled || (status.mode != RUN_RUNNING && status.mode != RUN_TUNE_RUNNING))
         yaw_integral = 0;
-    status.config_ok = param_can_arm(&g_app_param, CAL_FULL_RACE != 0) && camera_ok &&
-                       (!gyro_enabled || gyro_ready) && CAL_VISION_V2_VALIDATED &&
-                       !CAL_FULL_RACE;
+    /* Ordinary start uses the ground-projection pipeline, which checks its
+     * calibration on each frame. Full race still needs route support. */
+    status.config_ok = !CAL_FULL_RACE && param_valid(&g_app_param) && camera_ok &&
+                       (!gyro_enabled || gyro_ready);
     if (elapsed == 0 || elapsed > 20000) {
         if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
             status.mode == RUN_DUTY_DEBUG || status.mode == RUN_SPEED_DEBUG ||
@@ -133,11 +134,14 @@ void app_control_tick_isr(void) {
     }
     if (status.mode == RUN_READY && gyro_enabled && !gyro_ready)
         fault(STOP_GYRO);
+    bool start_frame = fresh && incoming.session_id == status.session_id && incoming.valid &&
+                       incoming.confidence >= 40 && incoming.frame_id == good.frame_id &&
+                       !incoming.stop_requested && good.speed_cap_mps > 0;
     if (run_manager_step(&status.mode, &status.reason, requests,
                          status.config_ok && status.feedback.valid &&
                              fabsf(status.feedback.speed_mps[0]) < .03f &&
                              fabsf(status.feedback.speed_mps[1]) < .03f,
-                         fresh, &status.session_id)) {
+                         start_frame, &status.session_id)) {
         memset(pi, 0, sizeof(pi));
         memset(&plan, 0, sizeof(plan));
         if (status.mode == RUN_READY || status.mode == RUN_STATIC_DEBUG)
