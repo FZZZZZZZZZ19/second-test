@@ -97,6 +97,11 @@ int main(void) {
         assert(vision_project_path(&entry,far_x,far_y,VISION_FORWARD_OFFSET_M,&projected));
         assert(!projected.near_transverse && fabsf(projected.heading_rad)<1e-5f);
         assert(projected.speed_cap_mps==1);
+        const float far_transverse_y[3]={100,80,94};
+        assert(vision_project_path(&entry,far_x,far_transverse_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(!projected.near_transverse && fabsf(projected.heading_rad)<1e-5f);
+        const float far_reverse_y[3]={100,80,96};
+        assert(!vision_project_path(&entry,far_x,far_reverse_y,VISION_FORWARD_OFFSET_M,&projected));
         const float near_x[3]={94,94+30*turn,94+60*turn}, near_y[3]={100,100,100};
         assert(vision_project_path(&entry,near_x,near_y,VISION_FORWARD_OFFSET_M,&projected));
         assert(projected.near_transverse && projected.curvature==0);
@@ -107,8 +112,13 @@ int main(void) {
         const float slight_back_y[3]={100,101,101};
         assert(vision_project_path(&entry,near_x,slight_back_y,VISION_FORWARD_OFFSET_M,&projected));
         assert(projected.near_transverse && fabsf(projected.heading_rad-turn*1.57079633f)<1e-5f);
-        const float reverse_y[3]={100,110,110};
+        const float near_transverse_y[3]={100,114,114};
+        assert(vision_project_path(&entry,near_x,near_transverse_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(projected.near_transverse && projected.curvature==0);
+        const float reverse_y[3]={100,116,116};
         assert(!vision_project_path(&entry,near_x,reverse_y,VISION_FORWARD_OFFSET_M,&projected));
+        const float mostly_backward_x[3]={94,94+10*turn,94+60*turn};
+        assert(!vision_project_path(&entry,mostly_backward_x,near_transverse_y,VISION_FORWARD_OFFSET_M,&projected));
         const float folded_x[3]={94,94+60*turn,94+20*turn};
         assert(!vision_project_path(&entry,folded_x,near_y,VISION_FORWARD_OFFSET_M,&projected));
         const float duplicate_x[3]={94,94,94+60*turn};

@@ -48,16 +48,20 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],flo
             return false;
         z[i] -= forward_offset_m;
     }
-    const float tolerance_m=.005f;
+    const float min_point_distance_m=.005f;
+    const float transverse_forward_tolerance_m=.030f;
     float dx1=x[1]-x[0], dz1=z[1]-z[0];
     float dx2=x[2]-x[1], dz2=z[2]-z[1];
-    bool near_transverse=fabsf(dz1)<=tolerance_m && fabsf(dx1)>=tolerance_m;
-    bool far_transverse=fabsf(dz2)<=tolerance_m && fabsf(dx2)>=tolerance_m;
+    bool near_transverse=fabsf(dz1)<=transverse_forward_tolerance_m &&
+                         fabsf(dx1)>=fmaxf(min_point_distance_m,fabsf(dz1));
+    bool far_transverse=fabsf(dz2)<=transverse_forward_tolerance_m &&
+                        fabsf(dx2)>=fmaxf(min_point_distance_m,fabsf(dz2));
     if ((dz1<=0 && !near_transverse) || (dz2<=0 && !far_transverse))
         return false;
     float a=hypotf(dz1,dx1), b=hypotf(dz2,dx2), c=hypotf(dz1+dz2,dx1+dx2);
     float denominator=a*b*c;
-    if(!isfinite(denominator)||a<tolerance_m||b<tolerance_m||c<tolerance_m)return false;
+    if (!isfinite(denominator) || a<min_point_distance_m || b<min_point_distance_m ||
+        c<min_point_distance_m) return false;
     /* The samples stay in contour order. Reject a fold-back, but keep a right angle. */
     if ((near_transverse || far_transverse) && dx1*dx2+dz1*dz2 < -.5f*a*b)
         return false;
