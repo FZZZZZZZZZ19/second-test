@@ -1202,7 +1202,7 @@ void fill_roundabout_in_dir(int offsetx,int offsety)
     {
         int i = 0;
         int start_y = SCUT_IMAGE_H-3 - offsety-5;
-        if(l_first_bend_y != -1)
+        if(l_first_bend_y != -1 && l_first_bend_y >= SCUT_IMAGE_H / 3)
         {
             for(i = 0;i<l_statics && i < LINE_LENGTH;i++)
             {
@@ -1230,7 +1230,7 @@ void fill_roundabout_in_dir(int offsetx,int offsety)
     else{
         int i = 0;
         int start_y = SCUT_IMAGE_H-3 - offsety-5;
-        if(r_first_bend_y != -1)
+        if(r_first_bend_y != -1 && r_first_bend_y >= SCUT_IMAGE_H / 3)
         {
             for(i = 0;i<r_statics && i < LINE_LENGTH;i++)
             {
