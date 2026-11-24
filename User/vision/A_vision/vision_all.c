@@ -1046,6 +1046,7 @@ void reset_restate(void)
 
 void analyze_dir(void)
 {
+
     if(restate ==  0)
     {
         // 这个基于车得正
@@ -1347,9 +1348,19 @@ void fill_none_dir(void)
     target_statics = j;
 }
 
+int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
 
 void update_dir_info(void)
 {
+    if(restate == -1)
+    {
+        first_point_x = px1;
+        first_point_y = py1;
+        X1 = px2;
+        Y1 = py2;
+        X2 = px3;
+        Y2 = py3;
+    }
     if(restate == 0)
     {
         fill_none_dir();LR=0;out_y_lr = 0;
