@@ -63,7 +63,7 @@ void app_main_poll(void) {
             team_vision_reset();
         if ((snapshot.mode == RUN_TUNE_WAIT || snapshot.mode == RUN_TUNE_RUNNING) &&
             observation.valid && !observation.stop_requested)
-            observation.speed_cap_mps = observation.near_transverse
+            observation.speed_cap_mps = observation.near_transverse || observation.heading_only
                 ? fminf(g_app_param.tune_speed_mps, observation.speed_cap_mps)
                 : g_app_param.tune_speed_mps;
         observation.reset_derivative=observation.state!=previous_track_state;

@@ -49,12 +49,11 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
         out->state=TRACK_DEGRADED;
         return false;
     }
-    /* Keep the full preview for validation, but only use the near section
-     * for feedforward. A far corner should not steer a straight near path. */
+    /* Only use the near section for feedforward on a complete path that supports curvature. */
     float near_u[3]={u[0],near_mid.x,u[1]};
     float near_v[3]={v[0],near_mid.y,v[1]};
     VisionOutput near={.speed_cap_mps=out->speed_cap_mps};
-    out->curvature=!out->near_transverse &&
+    out->curvature=!out->near_transverse && !out->heading_only &&
                    vision_project_path(params,near_u,near_v,VISION_FORWARD_OFFSET_M,&near)
                    ? near.curvature : 0;
     out->confidence=60;

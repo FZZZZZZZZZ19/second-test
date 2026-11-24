@@ -35,46 +35,58 @@ bool vision_target_step(const VisionFeatures *f,const TrackDecision *d,const App
 bool vision_project_path(const AppParam *p,const float u[3],const float v[3],float forward_offset_m,VisionOutput *o) {
     o->valid=false;
     o->near_transverse=false;
-    if (!isfinite(o->speed_cap_mps) || o->speed_cap_mps < 0)
+    o->heading_only=false;
+    if (!isfinite(o->speed_cap_mps) || o->speed_cap_mps < 0 || !isfinite(forward_offset_m))
         return false;
     float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
     for(unsigned i=0;i<8;i++)if(!isfinite(h[i]))return false;
     float det=h[0]*(h[4]-h[5]*h[7])-h[1]*(h[3]-h[5]*h[6])+h[2]*(h[3]*h[7]-h[4]*h[6]);
     if(!isfinite(det)||fabsf(det)<1e-12f)return false;
     float x[3],z[3];
+    unsigned count=0;
     for (unsigned i=0;i<3;i++) {
         if (!isfinite(u[i]) || !isfinite(v[i]) || u[i]<0 || u[i]>=APP_WIDTH ||
-            v[i]<0 || v[i]>=APP_HEIGHT || !project(p,u[i],v[i],&x[i],&z[i]))
-            return false;
-        z[i] -= forward_offset_m;
+            v[i]<0 || v[i]>=APP_HEIGHT || !project(p,u[i],v[i],&x[count],&z[count]))
+            continue;
+        z[count++] -= forward_offset_m;
     }
-    const float min_point_distance_m=.005f;
+    if (!count) return false;
+    /* Pad the projected samples to reuse the heading calculation with a short preview. */
+    for (unsigned i=count;i<3;i++) {
+        x[i]=x[count-1];
+        z[i]=z[count-1];
+    }
+    const float min_curvature_spacing_m=.005f;
     const float transverse_forward_tolerance_m=.030f;
     float dx1=x[1]-x[0], dz1=z[1]-z[0];
     float dx2=x[2]-x[1], dz2=z[2]-z[1];
     bool near_transverse=fabsf(dz1)<=transverse_forward_tolerance_m &&
-                         fabsf(dx1)>=fmaxf(min_point_distance_m,fabsf(dz1));
+                         fabsf(dx1)>=fmaxf(min_curvature_spacing_m,fabsf(dz1));
     bool far_transverse=fabsf(dz2)<=transverse_forward_tolerance_m &&
-                        fabsf(dx2)>=fmaxf(min_point_distance_m,fabsf(dz2));
-    if ((dz1<=0 && !near_transverse) || (dz2<=0 && !far_transverse))
-        return false;
+                        fabsf(dx2)>=fmaxf(min_curvature_spacing_m,fabsf(dz2));
     float a=hypotf(dz1,dx1), b=hypotf(dz2,dx2), c=hypotf(dz1+dz2,dx1+dx2);
     float denominator=a*b*c;
-    if (!isfinite(denominator) || a<min_point_distance_m || b<min_point_distance_m ||
-        c<min_point_distance_m) return false;
-    /* The samples stay in contour order. Reject a fold-back, but keep a right angle. */
-    if ((near_transverse || far_transverse) && dx1*dx2+dz1*dz2 < -.5f*a*b)
-        return false;
+    bool reversed=(dz1<=0 && !near_transverse) || (dz2<=0 && !far_transverse);
+    bool folded=dx1*dx2+dz1*dz2 < -.5f*a*b;
+    o->heading_only=count<3 || reversed || folded || !isfinite(denominator) ||
+                    a<min_curvature_spacing_m || b<min_curvature_spacing_m || c<min_curvature_spacing_m;
     o->lateral_m=x[0]; o->forward_m=z[0];
-    o->heading_rad=atan2f(dx1,fmaxf(dz1,0));
+    float heading_dx=a>=min_curvature_spacing_m ? dx1 : x[2]-x[0];
+    float heading_dz=a>=min_curvature_spacing_m ? dz1 : z[2]-z[0];
+    float heading_forward=fmaxf(heading_dz,0);
+    o->heading_rad=heading_dx==0 && heading_forward==0 ? 0 : atan2f(heading_dx,heading_forward);
     /* Signed circumcircle curvature; forward then right gives right-positive. */
-    o->curvature=near_transverse ? 0 : 2*(dz1*dx2-dx1*dz2)/denominator;
-    if (near_transverse) {
+    o->curvature=near_transverse || o->heading_only ? 0 : 2*(dz1*dx2-dx1*dz2)/denominator;
+    if (!isfinite(o->curvature)) {
+        o->curvature=0;
+        o->heading_only=true;
+    }
+    if (near_transverse || o->heading_only) {
         if (!isfinite(p->speed_corner) || p->speed_corner < 0)
             return false;
         o->speed_cap_mps=fminf(o->speed_cap_mps,p->speed_corner);
-        o->near_transverse=true;
     }
+    o->near_transverse=near_transverse;
     o->valid=isfinite(o->curvature)&&isfinite(o->heading_rad);
     return o->valid;
 }
