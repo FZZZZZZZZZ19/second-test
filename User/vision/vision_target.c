@@ -36,6 +36,7 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],flo
     o->valid=false;
     o->near_transverse=false;
     o->heading_only=false;
+    o->corner_direction=0;
     if (!isfinite(o->speed_cap_mps) || o->speed_cap_mps < 0 || !isfinite(forward_offset_m))
         return false;
     float h[]={p->ground_h0,p->ground_h1,p->ground_h2,p->ground_h3,p->ground_h4,p->ground_h5,p->ground_h6,p->ground_h7};
@@ -67,7 +68,12 @@ bool vision_project_path(const AppParam *p,const float u[3],const float v[3],flo
     float a=hypotf(dz1,dx1), b=hypotf(dz2,dx2), c=hypotf(dz1+dz2,dx1+dx2);
     float denominator=a*b*c;
     bool reversed=(dz1<=0 && !near_transverse) || (dz2<=0 && !far_transverse);
-    bool folded=dx1*dx2+dz1*dz2 < -.5f*a*b;
+    float dot=dx1*dx2+dz1*dz2;
+    bool folded=dot < -.5f*a*b;
+    /* A close L provides a direction and an entry point for the gyro turn. */
+    if (count==3 && a>=.030f && b>=.030f && z[1]>=-.020f && z[1]<=.100f &&
+        dz1>fabsf(dx1) && fabsf(dx2)>=fabsf(dz2) && fabsf(dot)<=.45f*a*b)
+        o->corner_direction=dx2>0 ? -1 : 1;
     o->heading_only=count<3 || reversed || folded || !isfinite(denominator) ||
                     a<min_curvature_spacing_m || b<min_curvature_spacing_m || c<min_curvature_spacing_m;
     o->lateral_m=x[0]; o->forward_m=z[0];

@@ -22,5 +22,6 @@ typedef struct {
     VisionElementDebug element_debug;
     bool near_transverse; /* Close segment is sideways and uses heading-only steering geometry. */
     bool heading_only; /* Incomplete or degenerate geometry uses direction without curvature. */
+    int8_t corner_direction; /* Close right-angle corner: left +1, right -1. */
 } VisionOutput;
 #endif

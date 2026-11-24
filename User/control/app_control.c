@@ -19,6 +19,7 @@ static float tune_search_origin_m[2];
 static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
+static GyroCornerTurn gyro_corner;
 void app_control_publish_gyro(const GyroMeasurement *measurement) {
     BoardIrqToken token = board_irq_save();
     gyro_latest = *measurement;
@@ -38,6 +39,7 @@ void app_control_init(void) {
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
     yaw_integral = 0;
+    gyro_corner = (GyroCornerTurn){0};
     previous_us = board_time_us();
     initialized = true;
     app_exchange_publish_control(&status);
@@ -94,8 +96,10 @@ void app_control_tick_isr(void) {
     bool gyro_ready = status.gyro.status == GYRO_READY &&
                       isfinite(status.gyro.rate_radps) && isfinite(status.gyro.angle_rad);
     status.omega_target_radps = status.omega_command_radps = 0;
-    if (!gyro_enabled || (status.mode != RUN_RUNNING && status.mode != RUN_TUNE_RUNNING))
+    if (!gyro_enabled || (status.mode != RUN_RUNNING && status.mode != RUN_TUNE_RUNNING)) {
         yaw_integral = 0;
+        gyro_corner = (GyroCornerTurn){0};
+    }
     status.config_ok = param_can_arm(&g_app_param, CAL_FULL_RACE != 0) && camera_ok &&
                        (!gyro_enabled || gyro_ready) && CAL_VISION_V2_VALIDATED &&
                        !CAL_FULL_RACE;
@@ -254,18 +258,29 @@ void app_control_tick_isr(void) {
             }
             bool ok = true;
             StopReason failure = STOP_NONFINITE;
+            bool sharp_turn = good.sharp_turn;
+            if (gyro_enabled && gyro_ready && !stopping && speed > 0 &&
+                gyro_corner_step(&gyro_corner, good.corner_direction, good.frame_id, now,
+                                 status.gyro.angle_rad,
+                                 .5f * (status.feedback.rolling_m[0] + status.feedback.rolling_m[1]),
+                                 &omega)) {
+                speed = fminf(speed, g_app_param.speed_corner);
+                sharp_turn = true;
+            }
             status.omega_target_radps = omega;
             if (gyro_enabled && !stopping) {
                 ok = gyro_ready && yaw_control_step(&yaw_integral, &g_app_param, omega,
                          status.gyro.rate_radps, dt, status.targets.limited, &omega);
                 if (!ok)
                     failure = STOP_GYRO;
-            } else
+            } else {
                 yaw_integral = 0;
+                gyro_corner = (GyroCornerTurn){0};
+            }
             status.omega_command_radps = ok ? omega : 0;
             if (ok)
                 ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping,
-                                      good.sharp_turn, &status.targets);
+                                      sharp_turn, &status.targets);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,

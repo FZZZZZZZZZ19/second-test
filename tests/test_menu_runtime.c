@@ -43,6 +43,43 @@ static void publish_lost_frame(void) {
     publish_tune_frame();
     motion.valid=false;
 }
+static void tick_corner(int8_t direction, float angle_rad) {
+    app_control_publish_gyro(&(GyroMeasurement){.stamp_ms=board_time_ms(),
+        .status=GYRO_READY,.angle_rad=angle_rad});
+    publish_tune_frame();
+    motion.corner_direction=direction;
+    motion.omega_raw=0;
+    tick(0);
+}
+static void check_gyro_corners(void) {
+    g_app_param.flags |= APP_FLAG_GYRO_LOOP;
+    app_control_publish_gyro(&(GyroMeasurement){.stamp_ms=board_time_ms(),.status=GYRO_READY,.angle_rad=.4f});
+    tick(REQ_TRACK_START);
+    assert(output.mode==RUN_TUNE_WAIT);
+    tick_corner(-1,.4f);
+    assert(output.mode==RUN_TUNE_RUNNING && output.omega_target_radps<0);
+    tick_corner(0,-.5f); /* The visual L disappears while still in the turn. */
+    assert(output.omega_target_radps<0);
+    tick_corner(-1,-1.1f);
+    assert(output.omega_target_radps==0); /* 1.5 rad relative to this entry. */
+    tick_corner(-1,-1.1f);
+    assert(output.omega_target_radps==0); /* Same corner with no forward progress. */
+    feedback.rolling_m[0]+=.04f;
+    feedback.rolling_m[1]+=.04f;
+    tick_corner(-1,-1.1f);
+    assert(output.omega_target_radps<0); /* Next same-side corner uses a new angle. */
+    tick_corner(0,-2.1f);
+    assert(output.omega_target_radps<0);
+    tick_corner(-1,-2.6f);
+    assert(output.omega_target_radps==0);
+    tick_corner(1,-2.6f);
+    assert(output.omega_target_radps>0); /* An opposite corner can follow immediately. */
+    tick_corner(0,-1.1f);
+    assert(output.omega_target_radps==0);
+    tick(REQ_HALT);
+    assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
+    g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
+}
 static void check_continuous_start(void) {
     feedback.valid=true;
     app_control_camera_ready(true);
@@ -257,8 +294,10 @@ int main(void) {
     tick(REQ_RESET); tick(REQ_RUN30); tick(REQ_HALT); assert(duty[0]==0 && output.targets.left_mps==0);
     check_continuous_start();
     check_tune();
+    check_gyro_corners();
     check_gyro();
     puts("PASS: continuous start, bounded line search, vision recovery and halt");
+    puts("PASS: gyro corner assist through visual cue loss and consecutive same/opposite turns");
     puts("PASS: gyro calibration, rate and angle signs, zero, PI limits, timeout, error, bypass and foreground I2C");
     puts("PASS: track tune fresh start, steering, speed cap, timeout, stale/lost frame, feedback and halt; real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault");
     return 0;

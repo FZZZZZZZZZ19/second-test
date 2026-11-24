@@ -96,7 +96,13 @@ int main(void) {
         const float far_x[3]={94,94,94+60*turn}, far_y[3]={100,80,80};
         assert(vision_project_path(&entry,far_x,far_y,VISION_FORWARD_OFFSET_M,&projected));
         assert(!projected.near_transverse && fabsf(projected.heading_rad)<1e-5f);
+        assert(projected.corner_direction==-turn);
+        path_control_reset(&control,9);
+        assert(control_path_step(&control,&projected,&entry,&request) && request.corner_direction==-turn);
         assert(projected.speed_cap_mps==1);
+        const float distant_corner_y[3]={80,40,40};
+        assert(vision_project_path(&entry,far_x,distant_corner_y,VISION_FORWARD_OFFSET_M,&projected));
+        assert(projected.corner_direction==0);
         const float far_transverse_y[3]={100,80,94};
         assert(vision_project_path(&entry,far_x,far_transverse_y,VISION_FORWARD_OFFSET_M,&projected));
         assert(!projected.near_transverse && fabsf(projected.heading_rad)<1e-5f);

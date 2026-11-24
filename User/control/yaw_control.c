@@ -3,6 +3,42 @@
 #include "core_math.h"
 #include <math.h>
 
+bool gyro_corner_step(GyroCornerTurn *turn, int8_t direction, uint32_t frame_id,
+                      uint32_t now, float angle_rad, float distance_m, float *omega) {
+    const float quarter_turn_rad = 1.57079633f;
+    const float finish_margin_rad = .08726646f; /* Hand back to vision at 85 degrees. */
+    const uint32_t max_turn_ms = 2500u;
+    if (!isfinite(angle_rad) || !isfinite(distance_m)) {
+        *turn = (GyroCornerTurn){0};
+        return false;
+    }
+    if (!turn->active) {
+        if (!direction) {
+            if (!turn->direction || frame_id != turn->finish_frame)
+                turn->direction = 0;
+            return false;
+        }
+        /* A second cue may follow immediately. A repeated same-side L needs
+         * a new entry after the cue cleared, or forward progress past the exit. */
+        if (turn->direction && (frame_id == turn->finish_frame ||
+            (direction == turn->direction && distance_m - turn->finish_distance_m < .030f)))
+            return false;
+        turn->direction = direction;
+        turn->entry_angle_rad = angle_rad;
+        turn->entry_ms = now;
+        turn->active = true;
+    }
+    float remaining = quarter_turn_rad - turn->direction * (angle_rad - turn->entry_angle_rad);
+    if (remaining <= finish_margin_rad || now - turn->entry_ms >= max_turn_ms) {
+        turn->active = false;
+        turn->finish_frame = frame_id;
+        turn->finish_distance_m = distance_m;
+        return false;
+    }
+    *omega = turn->direction * app_clamp(4 * remaining, .65f, 3.0f);
+    return true;
+}
+
 bool gyro_estimator_step(GyroEstimator *s, float z, float norm, float accel,
                          bool stationary, uint32_t now) {
     if (!isfinite(z) || !isfinite(norm) || !isfinite(accel))
