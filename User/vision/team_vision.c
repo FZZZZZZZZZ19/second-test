@@ -49,6 +49,8 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
         out->state=TRACK_DEGRADED;
         return false;
     }
+    out->has_p0=u[0]>=0 && u[0]<APP_WIDTH && v[0]>=0 && v[0]<APP_HEIGHT;
+    out->p0_x_px=u[0];
     /* Only use the near section for feedforward on a complete path that supports curvature. */
     float near_u[3]={u[0],near_mid.x,u[1]};
     float near_v[3]={v[0],near_mid.y,v[1]};

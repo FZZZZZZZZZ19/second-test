@@ -33,6 +33,7 @@ int main(void) {
     assert(pixels[0][112]==220 && pixels[0][0]==15);
     assert(out.session_id==9 && out.frame_id==1 && out.capture_ms==100);
     float u=preview[0].x, v=preview[0].y;
+    assert(out.has_p0 && out.p0_x_px==u);
     float original_z=(params.ground_h3*u+params.ground_h4*v+params.ground_h5) /
                      (params.ground_h6*u+params.ground_h7*v+1);
     assert(out.lateral_m>0 && original_z>.0355f && out.forward_m>0);

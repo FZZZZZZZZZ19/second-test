@@ -57,6 +57,18 @@ int main(void) {
     assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==-2.4375f && motion.sharp_turn);
     v.frame_id++; p.heading_gain_per_s=0;
     assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==0);
+    v.heading_rad=0; v.near_transverse=false; v.curvature=0;
+    v.has_p0=true; p.center_x_px=93.5f;
+    v.frame_id++; v.p0_x_px=108.5f;
+    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw+.6f)<1e-5f);
+    v.frame_id++; v.p0_x_px=78.5f;
+    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw-.6f)<1e-5f);
+    v.frame_id++; v.p0_x_px=95.5f;
+    assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==0);
+    v.frame_id++; v.p0_x_px=145;
+    assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==-1.2f);
+    v.frame_id++; v.corner_direction=1;
+    assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==0);
     puts("PASS: standalone control, synthetic VisionOutput, no vision or board objects linked");
     return 0;
 }

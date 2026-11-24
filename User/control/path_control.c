@@ -48,6 +48,14 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->sharp_turn = v->near_transverse || fabsf(v->heading_rad) >= sharp_turn_heading_rad;
     if (o->sharp_turn)
         o->omega_raw *= 1.5f;
+    else if (!v->corner_direction && v->has_p0 && isfinite(v->p0_x_px) && isfinite(p->center_x_px)) {
+        const float center_deadband_px = 3.0f;
+        const float centering_radps_per_px = .05f;
+        const float max_centering_omega = 1.2f;
+        float offset_px = v->p0_x_px - p->center_x_px;
+        float correction = fmaxf(fabsf(offset_px) - center_deadband_px, 0) * centering_radps_per_px;
+        o->omega_raw -= copysignf(fminf(correction, max_centering_omega), offset_px);
+    }
     o->valid = isfinite(o->omega_raw);
     return o->valid;
 }
