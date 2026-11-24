@@ -110,7 +110,7 @@ static void pi_and_motion(void) {
         SideTargets normal_target;
         CHECK(motion_plan_step(&normal, &p, .12f, turn*3.0f, .005f, false, false, &normal_target));
         CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, true, &target));
-        NEAR(target.model_omega_radps, 2 * normal_target.model_omega_radps);
+        NEAR(target.model_omega_radps, 4 * normal_target.model_omega_radps);
         NEAR(target.model_v_mps, .12f);
         for (unsigned i = 0; i < 120; i++)
             CHECK(motion_plan_step(&sharp, &p, .12f, turn*3.0f, .005f, false, true, &target));

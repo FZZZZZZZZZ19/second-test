@@ -34,8 +34,9 @@ bool motion_plan_step(MotionPlanState *s, const AppParam *p, float speed, float 
     float al = (dl >= 0 ? p->accel_mps2 : p->decel_mps2) * dt,
           ar = (dr >= 0 ? p->accel_mps2 : p->decel_mps2) * dt;
     /* Relax wheel ramps only for changes that increase the commanded turn. */
-    if (boost && dl * w < 0) al *= 2;
-    if (boost && dr * w > 0) ar *= 2;
+    const float sharp_turn_ramp_multiplier = 4.0f;
+    if (boost && dl * w < 0) al *= sharp_turn_ramp_multiplier;
+    if (boost && dr * w > 0) ar *= sharp_turn_ramp_multiplier;
     if (fabsf(dl) > al)
         lam = fminf(lam, al / fabsf(dl));
     if (fabsf(dr) > ar)
