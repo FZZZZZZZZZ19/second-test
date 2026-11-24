@@ -13,6 +13,7 @@ static MotionPlanState plan;
 static uint32_t previous_us, tune_since;
 static uint32_t tune_retry_last_frame;
 static unsigned tune_retry_frames;
+static bool tune_continuous;
 static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
@@ -112,7 +113,8 @@ void app_control_tick_isr(void) {
         status.reason = STOP_LOCAL;
         status.session_id++;
         requests = 0;
-    } else if (status.mode == RUN_STATIC_DEBUG && (requests & REQ_TRACK_TUNE)) {
+    } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_TRACK_TUNE | REQ_TRACK_START))) {
+        tune_continuous = (requests & REQ_TRACK_START) != 0;
         tune_wait(now, STOP_NONE);
         if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
         else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
@@ -151,7 +153,7 @@ void app_control_tick_isr(void) {
         bool current = incoming.session_id == status.session_id;
         bool usable = current && incoming.valid && incoming.confidence >= 40;
         if ((requests & REQ_STOP) || (current && incoming.stop_requested) ||
-            (status.mode == RUN_TUNE_RUNNING && now - tune_since >= duration_ms)) {
+            (status.mode == RUN_TUNE_RUNNING && !tune_continuous && now - tune_since >= duration_ms)) {
             status.mode = RUN_STATIC_DEBUG;
             status.reason = (requests & REQ_STOP) ? STOP_LOCAL :
                             (current && incoming.stop_requested) ? STOP_TRACK : STOP_TUNE_DONE;
@@ -183,7 +185,7 @@ void app_control_tick_isr(void) {
                 tune_wait(now, STOP_VISION);
         } else if (!tune_fresh || !usable)
             tune_wait(now, STOP_VISION);
-        if (status.mode == RUN_TUNE_RUNNING)
+        if (status.mode == RUN_TUNE_RUNNING && !tune_continuous)
             status.tune_remaining_ms = duration_ms - (now - tune_since);
     }
     if (status.mode == RUN_DUTY_DEBUG) {

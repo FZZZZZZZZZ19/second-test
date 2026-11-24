@@ -39,6 +39,26 @@ static void publish_tune_frame(void) {
     motion=(MotionRequest){.session_id=output.session_id,.frame_id=++frame_id,.capture_ms=board_time_ms(),
                            .valid=true,.confidence=60,.speed_cap_mps=1,.omega_raw=-.4f};
 }
+static void check_continuous_start(void) {
+    feedback.valid=true;
+    app_control_camera_ready(true);
+    g_app_param.tune_duration_s=APP_TUNE_MIN_S;
+    publish_tune_frame(); tick(REQ_TRACK_START);
+    assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+    publish_tune_frame(); tick(0);
+    for (unsigned i=0;i<(unsigned)(APP_TUNE_MAX_S*1000)/APP_CONTROL_PERIOD_MS+1;i++) {
+        publish_tune_frame(); tick(0);
+        assert(output.mode==RUN_TUNE_RUNNING && output.reason==STOP_NONE && output.tune_remaining_ms==0);
+    }
+    assert(duty[0]>0 && duty[1]>0);
+    motion.valid=false; tick(0);
+    assert(output.mode==RUN_TUNE_WAIT && output.reason==STOP_VISION && duty[0]==0 && duty[1]==0);
+    for (unsigned i=0;i<APP_TUNE_RETRY_FRAMES;i++) { publish_tune_frame(); tick(0); }
+    for (unsigned i=0;i<200;i++) { publish_tune_frame(); tick(0); }
+    assert(output.mode==RUN_TUNE_RUNNING && output.reason==STOP_NONE && output.tune_remaining_ms==0);
+    tick(REQ_HALT);
+    assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
+}
 static void check_tune(void) {
     feedback.valid=true;
     g_app_param.tune_duration_s=4.5f;
@@ -190,8 +210,10 @@ int main(void) {
     tick(REQ_RESET); assert(output.mode==RUN_STATIC_DEBUG);
     tick(REQ_RUN30); clock_us+=25000; tick(0); assert(output.mode==RUN_FAULT && duty[0]==0);
     tick(REQ_RESET); tick(REQ_RUN30); tick(REQ_HALT); assert(duty[0]==0 && output.targets.left_mps==0);
+    check_continuous_start();
     check_tune();
     check_gyro();
+    puts("PASS: continuous start beyond the tune duration, vision retry and halt");
     puts("PASS: gyro calibration, rate and angle signs, zero, PI limits, timeout, error, bypass and foreground I2C");
     puts("PASS: track tune fresh start, steering, speed cap, timeout, stale/lost frame, feedback and halt; real control ISR open-loop30, speed PI target/ramp, guards, halt priority, timing fault");
     return 0;

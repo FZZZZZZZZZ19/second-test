@@ -58,11 +58,14 @@ static void snapshot(const char *path) {
     FILE *f=fopen(path,"wb"); assert(f); fprintf(f,"P5\n128 160\n255\n");
     assert(fwrite(screen,1,sizeof screen,f)==sizeof screen); fclose(f);
 }
-static void assert_tune_element_row(const char *text) {
+static void assert_text_row(unsigned y, const char *text, bool selected) {
     unsigned char actual[16][128];
-    memcpy(actual,screen[144],sizeof actual);
-    menu_font_text(144,text,1,true);
-    assert(memcmp(actual,screen[144],sizeof actual)==0);
+    memcpy(actual,screen[y],sizeof actual);
+    menu_font_text(y,text,1,selected);
+    assert(memcmp(actual,screen[y],sizeof actual)==0);
+}
+static void assert_tune_element_row(const char *text) {
+    assert_text_row(144,text,true);
 }
 void tft180_show_string(uint16_t x,uint16_t y,const char *text) { assert(x<160 && y<128 && strlen(text)<=26); }
 void menu_display_camera(const uint8_t *p,uint16_t w,uint16_t h,uint16_t stride) {
@@ -93,11 +96,12 @@ int main(void) {
     snapshot("build/host/menu-main.pgm");
     assert(screen[16][0]==0 && screen[48][0]==255); /* selected row is inverted */
     unsigned tiles_before=rgb_tiles; poll(100); assert(rgb_tiles==tiles_before); /* static UI does not repaint */
-    hold(); assert(capture && requests==REQ_TRACK_TUNE);
+    hold(); assert(capture && requests==REQ_TRACK_START);
     assert_tune_element_row("state:- flag:-");
     requests=0; s.mode=RUN_TUNE_WAIT; s.session_id++; poll(5);
     assert(capture && requests==0);
-    s.mode=RUN_TUNE_RUNNING; poll(5);
+    s.mode=RUN_TUNE_RUNNING; poll(100);
+    assert_text_row(0,"run 1.00m/s",false);
     mt9v03x_image[0][0]=11; mt9v03x_image[119][187]=59;
     mt9v03x_image[0][29]=255; mt9v03x_image[0][30]=17;
     mt9v03x_image[0][157]=23; mt9v03x_image[0][158]=255;
@@ -202,12 +206,13 @@ int main(void) {
     debug_view_frame(&f,&s,v,(VisionElementDebug){4,11,true});
     assert(images==tune_images+1 && red_lines==tune_red_lines+4);
     assert_tune_element_row("state:4 flag:11");
-    s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; poll(5);
+    s.mode=RUN_TUNE_RUNNING; s.stamp_ms++; s.tune_remaining_ms=3500; poll(5);
     debug_view_frame(&f,&s,v,(VisionElementDebug){2,3,true});
     assert(images==tune_images+1); /* Throttled preview. */
     assert_tune_element_row("state:4 flag:11");
     poll(100); debug_view_frame(&next_frame,&s,v,(VisionElementDebug){2,3,true});
     assert(images==tune_images+2);
+    assert_text_row(0,"3.5s 1.00m/s",false);
     assert_tune_element_row("state:2 flag:3");
     unsigned retry_resumes=resumes;
     s.mode=RUN_TUNE_WAIT; s.reason=STOP_VISION; s.session_id++; poll(100);

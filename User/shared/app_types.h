@@ -45,7 +45,7 @@ typedef enum {
     STOP_TUNE_DONE,
     STOP_GYRO
 } StopReason;
-typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8, REQ_HALT = 16, REQ_RUN30 = 32, REQ_SPEED_DEBUG = 64, REQ_RUN5 = 128, REQ_TRACK_TUNE = 256 } AppRequest;
+typedef enum { REQ_NONE = 0, REQ_READY = 1, REQ_START = 2, REQ_STOP = 4, REQ_RESET = 8, REQ_HALT = 16, REQ_RUN30 = 32, REQ_SPEED_DEBUG = 64, REQ_RUN5 = 128, REQ_TRACK_TUNE = 256, REQ_TRACK_START = 512 } AppRequest;
 typedef struct {
     uint16_t left, right;
 } WhiteRun;

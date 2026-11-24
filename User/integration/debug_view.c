@@ -84,7 +84,7 @@ static void action(MenuAction a, const ControlSnapshot *s) {
         }
         if (!camera_frame_set_running(true)) { note("camera failed"); break; }
         app_control_camera_ready(true);
-        app_exchange_request(REQ_TRACK_TUNE);
+        app_exchange_request(menu.parent == MENU_MAIN ? REQ_TRACK_START : REQ_TRACK_TUNE);
         tune_active = true;
         last_image = board_time_ms() - TUNE_PREVIEW_PERIOD_MS;
         tune_request_session = s->session_id;
@@ -154,11 +154,15 @@ static void render(const ControlSnapshot *s, uint32_t now) {
                 menu_float_text(b,sizeof b,s->gyro.rate_radps);
                 snprintf(text,sizeof text,"T%.6s M%.6s",a,b);
             } else {
-                unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
                 unsigned long speed=(unsigned long)(100*fminf(g_app_param.tune_speed_mps,
                                                              g_app_param.speed_limit_mps)+.5f);
-                snprintf(text,sizeof text,"%lu.%lus %lu.%02lum/s",
-                         tenths/10,tenths%10,speed/100,speed%100);
+                if (menu.parent == MENU_MAIN) {
+                    snprintf(text,sizeof text,"run %lu.%02lum/s",speed/100,speed%100);
+                } else {
+                    unsigned long tenths=(s->tune_remaining_ms+99u)/100u;
+                    snprintf(text,sizeof text,"%lu.%lus %lu.%02lum/s",
+                             tenths/10,tenths%10,speed/100,speed%100);
+                }
             }
             line(0,text);
         } else if (s->mode == RUN_TUNE_WAIT && s->reason == STOP_VISION)
