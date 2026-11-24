@@ -9,7 +9,7 @@
 enum { MAX_STEP = (SCUT_IMAGE_H + SCUT_IMAGE_W)*3, LINE_LENGTH = 200 };
 static const FrameView *source_frame;
 static uint8_t g_binary[SCUT_IMAGE_H][(SCUT_IMAGE_W+7)/8];
-static const int experience_value=10;
+static const int experience_value=20;
 
 static int Offset_x = 6;
 static int Offset_y = 10;
@@ -520,7 +520,7 @@ void pred_points(int distance, TeamPixel *near_mid)
         }
         return;
     }   
-    int distance2 = distance*distance;
+    
     int mid_x = SCUT_IMAGE_W/2;
     int mid_y = SCUT_IMAGE_H-3;
     int dx,dy,dist;
@@ -529,8 +529,8 @@ void pred_points(int distance, TeamPixel *near_mid)
     {
         dx = final_line[i][0] - mid_x;
         dy = final_line[i][1] - mid_y;
-        dist = dx*dx+dy*dy;
-        if(dist>=distance2)
+        dist = myabs(dx)+myabs(dy);
+        if(dist>=distance)
         {
             is_have = 1;
             index = i;
