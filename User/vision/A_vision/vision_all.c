@@ -1130,7 +1130,7 @@ void analyze_dir(void)
     {
         if(l1 == r1 && l2==r2)
         {restate = 0;reflag = 0;return;}
-        restate = 5;reflag = 5;
+        restate = 5;reflag = 5;return;
     }
     if(restate == 6)
     {
@@ -1367,7 +1367,6 @@ void fill_none_dir(void)
     target_statics = j;
 }
 
-int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
 
 void update_dir_info(void)
 {
@@ -1512,6 +1511,7 @@ void team_vision_reset(void)
 }
 
 int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
+
 int is_have_line = 0;
 void get_ppoints(void)
 {
@@ -1558,7 +1558,7 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
     if (threshold < 0) return false;
     mybinary(threshold);
     mypadding(2);
-    if (find_start(SCUT_IMAGE_H-3,10) || forward())
+    if (find_start(SCUT_IMAGE_H-3,10) && forward())
     {
         getmin_statics();
         reset_target_line();
