@@ -40,6 +40,15 @@ static void getmin_statics(void)
 
 static void reset_points(void)
 {
+    // int i;
+    // for (i = 0; i < MAX_STEP; i++) {
+    //     l_points[i][0] = -1;
+    //     l_points[i][1] = -1;
+    //     r_points[i][0] = -1;
+    //     r_points[i][1] = -1;
+    //     l_points_dir[i] = -1;
+    //     r_points_dir[i] = -1;
+    // }
     l_statics = 0;
     r_statics = 0;
 }
@@ -1050,6 +1059,8 @@ void analyze_dir(void)
     if(restate ==  0)
     {
         // 这个基于车得正
+        if(l1 == r1 && ((r2 == (r1-2)%8 && l2 == (l1-2)%8) || (r2 == (r1+2)%8 && l2 == (l1+2)%8)))
+        {restate = 6;reflag = 6;return;}
         if(l1 == r1 && l2 == (l1 -2)%8 && r2 == (r1 + 2)%8)
         {restate = 1;reflag = 1;return;}
         if(l1 == r1 && l2 == (l1 -1)%8 && r2 == (r1 + 1)%8)
@@ -1120,6 +1131,14 @@ void analyze_dir(void)
         if(l1 == r1 && l2==r2)
         {restate = 0;reflag = 0;return;}
         restate = 5;reflag = 5;
+    }
+    if(restate == 6)
+    {
+        if(l1 == r1 && ((l_first_bend_y>=SCUT_IMAGE_H/6 && r_first_bend_y >= SCUT_IMAGE_H/6) || (l_first_bend_y == -1 && r_first_bend_y == -1)))
+        {
+            restate = 0;reflag = 0;return;
+        }
+        restate = 6;reflag = 6;
     }
 }
 
@@ -1352,15 +1371,6 @@ int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
 
 void update_dir_info(void)
 {
-    if(restate == -1)
-    {
-        first_point_x = px1;
-        first_point_y = py1;
-        X1 = px2;
-        Y1 = py2;
-        X2 = px3;
-        Y2 = py3;
-    }
     if(restate == 0)
     {
         fill_none_dir();LR=0;out_y_lr = 0;
@@ -1384,6 +1394,10 @@ void update_dir_info(void)
     if(restate == 5)
     {
         fill_Y_dir(out_y_lr, Offset_x);
+    }
+    if(restate == 6)
+    {
+        fill_none_dir();
     }
 }
 
@@ -1497,11 +1511,45 @@ void team_vision_reset(void)
    reset_restate();
 }
 
+int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
+int is_have_line = 0;
+void get_ppoints(void)
+{
+    px1 = first_point_x;
+    px2 = X1;
+    px3 = X2;
+    py1 = first_point_y;
+    py2 = Y1;
+    py3 = Y2;
+}
+
+void set_ppoints(void)
+{
+    first_point_x = px1;
+    X1=px2;           
+    X2=px3;           
+    first_point_y=py1;
+    Y1=py2;           
+    Y2=py3;           
+}
+
+void reset_XY(void)
+{
+    first_point_x = -1;
+    X1 = -1;
+    X2 = -1;
+    first_point_y = -1;
+    Y1 = -1;
+    Y2 =-1;
+}
+
 bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points[3],
                         TeamPixel *near_mid, int *element, int *stage)
 {
     *element = *stage = -1;
     reset_lrxy();
+    reset_points();
+    reset_XY();
     if (!frame || !frame->pixels || frame->width != APP_WIDTH ||
         frame->height != APP_HEIGHT || frame->stride < frame->width)
         return false;
@@ -1510,21 +1558,37 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
     if (threshold < 0) return false;
     mybinary(threshold);
     mypadding(2);
-    if (!find_start(SCUT_IMAGE_H-3,10) || !forward()) return false;
-    getmin_statics();
-    reset_info();
-    reset_target_line();
-    get_first_point();
-    get_line_seg_dir(0); 
-    get_line_seg_dir_filt(0);
-    get_line_seg_dir_compact(2);
-    l1=l_seg_dir_pack[0],r1=r_seg_dir_pack[0],l2=l_seg_dir_pack[1],r2=r_seg_dir_pack[1];
-    analyze_dir();
-    update_dir_info();
-    make_final_line(first_point_x, first_point_y);
-    pred_points(preview_px, near_mid);
+    if (find_start(SCUT_IMAGE_H-3,10) || forward())
+    {
+        getmin_statics();
+        reset_target_line();
+        get_first_point();
+        get_line_seg_dir(0); 
+        get_line_seg_dir_filt(0);
+        get_line_seg_dir_compact(2);
+        l1=l_seg_dir_pack[0],r1=r_seg_dir_pack[0],l2=l_seg_dir_pack[1],r2=r_seg_dir_pack[1];
+        analyze_dir();
+        update_dir_info();
+        make_final_line(first_point_x, first_point_y);
+        if(final_statics <= 5)
+        {
+            is_have_line = 0;
+            set_ppoints();
+            
+        }
+        else{
+            is_have_line = 1;
+            pred_points(preview_px, near_mid);
+            get_ppoints();
+        }
+        
+    }
+    else{
+        is_have_line = 0;
+        set_ppoints();
+    }
     *element=restate;
-    *stage=reflag;
+    *stage=is_have_line;
     points[0]=(TeamPixel){first_point_x,first_point_y};
     points[1]=(TeamPixel){X1,Y1};
     points[2]=(TeamPixel){X2,Y2};
