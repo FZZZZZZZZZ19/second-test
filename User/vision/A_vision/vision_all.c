@@ -566,20 +566,20 @@ void pred_points(int distance, TeamPixel *near_mid)
 
 static int LR = 0;
 static int out_y_lr = 0;
-static int bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
-static int top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
-static int cx     = -1;                 /* Y/环岛分叉点 x */
-static int cy     = -1;                 /* Y/环岛分叉点 y */
+// static int bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
+// static int top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
+// static int cx     = -1;                 /* Y/环岛分叉点 x */
+// static int cy     = -1;                 /* Y/环岛分叉点 y */
 // static int elem_lr = 0;                 /* 0=左, 1=右 */
 // static int elem_lr_manual = 0;          /* Y型人工给定：0=左Y, 1=右Y（只改这个） */
 
-static void reset_info(void)
-{
-    bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
-    top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
-    cx     = -1;                 /* Y/环岛分叉点 x */
-    cy     = -1;                 /* Y/环岛分叉点 y */
-}
+// static void reset_info(void)
+// {
+//     bottom = -1;                 /* 十字路口底边 y，越大越靠下 */
+//     top    = -1;                 /* 十字路口顶边 y，越小越靠上 */
+//     cx     = -1;                 /* Y/环岛分叉点 x */
+//     cy     = -1;                 /* Y/环岛分叉点 y */
+// }
 
 #define LINE_SEG_STEP   10      /* 每段包含的巡线点数，按需要改 */
 /* 最坏情况：MAX_STEP 个点、每 LINE_SEG_STEP 点一段。以前写死 256 段，
@@ -1053,19 +1053,32 @@ void reset_restate(void)
     restate = 0;reflag = 0;
 }
 
+/* 8 邻域方向回退 k 格。C 里负数取模结果仍为负（(0-2)%8 == -2），
+ * 直接写 (d - k) % 8 既匹配不到 0..7，还可能和 -1 哨兵相等造成误判，
+ * 所以先补 8 再取模。 */
+static int dir_prev(int d, int k)
+{
+    return (d + 8 - k) % 8;
+}
+
 void analyze_dir(void)
 {
 
     if(restate ==  0)
     {
+        /* 压缩后没有有效段（l1/r1 为 -1）时不做元素判断，避免哨兵参与方向比较 */
+        if(l1 < 0 || r1 < 0)
+        {
+            restate = 0;reflag = 0;return;
+        }
         // 这个基于车得正
-        if(l1 == r1 && ((r2 == (r1-2)%8 && l2 == (l1-2)%8) || (r2 == (r1+2)%8 && l2 == (l1+2)%8)))
+        if(l1 == r1 && ((r2 == dir_prev(r1,2) && l2 == dir_prev(l1,2)) || (r2 == (r1+2)%8 && l2 == (l1+2)%8)))
         {restate = 6;reflag = 6;return;}
-        if(l1 == r1 && l2 == (l1 -2)%8 && r2 == (r1 + 2)%8)
+        if(l1 == r1 && l2 == dir_prev(l1,2) && r2 == (r1 + 2)%8)
         {restate = 1;reflag = 1;return;}
-        if(l1 == r1 && l2 == (l1 -1)%8 && r2 == (r1 + 1)%8)
+        if(l1 == r1 && l2 == dir_prev(l1,1) && r2 == (r1 + 1)%8)
         {restate = 2;reflag = 2;return ;}
-        if(l1 == r1 && (l2 == (l1-3)%8 || l2 == (l1-4)%8) && r2 == -1)
+        if(l1 == r1 && (l2 == dir_prev(l1,3) || l2 == dir_prev(l1,4)) && r2 == -1)
         {
             // 给一个方向的控制
             LR = 0;
@@ -1077,24 +1090,24 @@ void analyze_dir(void)
             LR = 1;
             restate = 3;reflag = 3;return;
         }
-        if(l1 == r1 && (l2 == (l1-3)%8 || l2 == (l1-4)%8) && (r2 == (r1+1)%8 || r2 == (r1+2)%8 ) )
+        if(l1 == r1 && (l2 == dir_prev(l1,3) || l2 == dir_prev(l1,4)) && (r2 == (r1+1)%8 || r2 == (r1+2)%8 ) )
         {
             // 给一个方向的控制
             LR = 1;
             restate = 4;reflag = 4;return;
         }
-        if(l1 == r1 && (r2 == (r1+3)%8 || r2 == (r1+4)%8)&& (l2 == (l1-1)%8 || l2 == (l1-2)%8 ))
+        if(l1 == r1 && (r2 == (r1+3)%8 || r2 == (r1+4)%8)&& (l2 == dir_prev(l1,1) || l2 == dir_prev(l1,2) ))
         {
             // 给一个方向的控制
             LR = 0;
             restate = 4;reflag = 4;return;
         }
-        if(l1 == r1 && (l2 == (l1 - 2)%8) && r2 == (r1+1)%8)
+        if(l1 == r1 && l2 == dir_prev(l1,2) && r2 == (r1+1)%8)
         {
             out_y_lr = 1;
             restate = 5;reflag = 5;return;
         }
-        if(l1 == r1 && l2 == (l1-1)%8 && r2 == (r1 + 2)%8)
+        if(l1 == r1 && l2 == dir_prev(l1,1) && r2 == (r1 + 2)%8)
         {
             out_y_lr = 0;
             restate = 5;reflag = 5;return;
@@ -1505,15 +1518,23 @@ int make_final_line(int fx, int fy)
 }
 
 
-void team_vision_reset(void)
+int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
+/* 上一帧的近段中点。复用上一帧时必须和 px1..py3 一起恢复，
+ * 否则上层（team_vision.c）读到的是未初始化的 near_mid。 */
+static int pnx=-1, pny=-1;
+/* 连续复用上一帧的帧数。短暂丢线（反光、抖一下）沿用旧路径没问题，
+ * 但超过上限就必须报丢线，不能让车一直按旧线跑。 */
+static int hold_frames = 0;
+enum { LINE_HOLD_MAX = 5 };
+
+static void clear_last_line(void)
 {
-   reset_restate();
+    px1 = px2 = px3 = py1 = py2 = py3 = -1;
+    pnx = pny = -1;
 }
 
-int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
-
 int is_have_line = 0;
-void get_ppoints(void)
+void get_ppoints(const TeamPixel *near_mid)
 {
     px1 = first_point_x;
     px2 = X1;
@@ -1521,16 +1542,23 @@ void get_ppoints(void)
     py1 = first_point_y;
     py2 = Y1;
     py3 = Y2;
+    if (near_mid != 0) {
+        pnx = near_mid->x;
+        pny = near_mid->y;
+    }
 }
 
-void set_ppoints(void)
+void set_ppoints(TeamPixel *near_mid)
 {
     first_point_x = px1;
-    X1=px2;           
-    X2=px3;           
+    X1=px2;
+    X2=px3;
     first_point_y=py1;
-    Y1=py2;           
-    Y2=py3;           
+    Y1=py2;
+    Y2=py3;
+    if (near_mid != 0) {
+        *near_mid = (TeamPixel){pnx, pny};
+    }
 }
 
 void reset_XY(void)
@@ -1541,6 +1569,40 @@ void reset_XY(void)
     first_point_y = -1;
     Y1 = -1;
     Y2 =-1;
+}
+
+void team_vision_reset(void)
+{
+   reset_restate();
+   /* 清掉上一帧缓存和复用计数：新 session 不能沿用旧位置。 */
+   clear_last_line();
+   hold_frames = 0;
+   is_have_line = 0;
+   reset_XY();
+}
+
+/* 本帧判定丢线：清空输出和缓存，交给控制层按丢线/超时处理。 */
+static bool give_up_line(TeamPixel points[3], TeamPixel *near_mid, int *element, int *stage)
+{
+    is_have_line = 0;
+    clear_last_line();
+    *element = *stage = -1;
+    points[0] = points[1] = points[2] = (TeamPixel){-1, -1};
+    if (near_mid != 0) {
+        *near_mid = (TeamPixel){-1, -1};
+    }
+    return false;
+}
+
+/* 复用上一帧的寻线结果；没有缓存或连续复用超过 LINE_HOLD_MAX 时返回 0（丢线）。 */
+static bool reuse_last_line(TeamPixel *near_mid)
+{
+    if (px1 < 0 || ++hold_frames > LINE_HOLD_MAX) {
+        return false;
+    }
+    is_have_line = 0;
+    set_ppoints(near_mid);
+    return true;
 }
 
 bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points[3],
@@ -1555,7 +1617,14 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
         return false;
     source_frame=frame;
     int threshold=GetThre(experience_value);
-    if (threshold < 0) return false;
+    if (threshold < 0) {
+        /* 整帧没有对比度（全黑/过曝）：出不了线，也按一次丢帧累计；
+         * 连续太多次后作废缓存，避免之后又复用很久以前的路径。 */
+        if (px1 >= 0 && ++hold_frames > LINE_HOLD_MAX) {
+            clear_last_line();
+        }
+        return false;
+    }
     mybinary(threshold);
     mypadding(2);
     if (find_start(SCUT_IMAGE_H-3,10) && forward())
@@ -1572,20 +1641,24 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
         make_final_line(first_point_x, first_point_y);
         if(final_statics <= 5)
         {
-            is_have_line = 0;
-            set_ppoints();
-            
+            /* 这一帧没补出可用中线：短暂沿用上一帧，超限按丢线处理 */
+            if (!reuse_last_line(near_mid)) {
+                return give_up_line(points, near_mid, element, stage);
+            }
         }
         else{
+            hold_frames = 0;
             is_have_line = 1;
             pred_points(preview_px, near_mid);
-            get_ppoints();
+            get_ppoints(near_mid);
         }
         
     }
     else{
-        is_have_line = 0;
-        set_ppoints();
+        /* 本帧没找到线：短暂沿用上一帧，超限按丢线处理 */
+        if (!reuse_last_line(near_mid)) {
+            return give_up_line(points, near_mid, element, stage);
+        }
     }
     *element=restate;
     *stage=is_have_line;
