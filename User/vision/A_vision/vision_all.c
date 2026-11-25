@@ -1522,10 +1522,6 @@ int px1=-1,px2=-1,px3=-1,py1=-1,py2=-1,py3=-1;
 /* 上一帧的近段中点。复用上一帧时必须和 px1..py3 一起恢复，
  * 否则上层（team_vision.c）读到的是未初始化的 near_mid。 */
 static int pnx=-1, pny=-1;
-/* 连续复用上一帧的帧数。短暂丢线（反光、抖一下）沿用旧路径没问题，
- * 但超过上限就必须报丢线，不能让车一直按旧线跑。 */
-static int hold_frames = 0;
-enum { LINE_HOLD_MAX = 5 };
 
 static void clear_last_line(void)
 {
@@ -1574,30 +1570,17 @@ void reset_XY(void)
 void team_vision_reset(void)
 {
    reset_restate();
-   /* 清掉上一帧缓存和复用计数：新 session 不能沿用旧位置。 */
+   /* 清掉上一帧缓存：新 session 不能沿用旧位置。 */
    clear_last_line();
-   hold_frames = 0;
    is_have_line = 0;
    reset_XY();
 }
 
-/* 本帧判定丢线：清空输出和缓存，交给控制层按丢线/超时处理。 */
-static bool give_up_line(TeamPixel points[3], TeamPixel *near_mid, int *element, int *stage)
-{
-    is_have_line = 0;
-    clear_last_line();
-    *element = *stage = -1;
-    points[0] = points[1] = points[2] = (TeamPixel){-1, -1};
-    if (near_mid != 0) {
-        *near_mid = (TeamPixel){-1, -1};
-    }
-    return false;
-}
-
-/* 复用上一帧的寻线结果；没有缓存或连续复用超过 LINE_HOLD_MAX 时返回 0（丢线）。 */
+/* 本帧没寻到线：沿用上一帧的点、近点和 restate，只把 is_have_line 置 0。
+ * 返回 0 表示还没有任何可沿用的结果（冷启动或刚 reset 过）。 */
 static bool reuse_last_line(TeamPixel *near_mid)
 {
-    if (px1 < 0 || ++hold_frames > LINE_HOLD_MAX) {
+    if (px1 < 0) {
         return false;
     }
     is_have_line = 0;
@@ -1616,49 +1599,55 @@ bool team_vision_points(const FrameView *frame, int preview_px, TeamPixel points
         frame->height != APP_HEIGHT || frame->stride < frame->width)
         return false;
     source_frame=frame;
+    bool traced = false;
     int threshold=GetThre(experience_value);
-    if (threshold < 0) {
-        /* 整帧没有对比度（全黑/过曝）：出不了线，也按一次丢帧累计；
-         * 连续太多次后作废缓存，避免之后又复用很久以前的路径。 */
-        if (px1 >= 0 && ++hold_frames > LINE_HOLD_MAX) {
-            clear_last_line();
-        }
-        return false;
-    }
-    mybinary(threshold);
-    mypadding(2);
-    if (find_start(SCUT_IMAGE_H-3,10) && forward())
-    {
-        getmin_statics();
-        reset_target_line();
-        get_first_point();
-        get_line_seg_dir(0); 
-        get_line_seg_dir_filt(0);
-        get_line_seg_dir_compact(2);
-        l1=l_seg_dir_pack[0],r1=r_seg_dir_pack[0],l2=l_seg_dir_pack[1],r2=r_seg_dir_pack[1];
-        analyze_dir();
-        update_dir_info();
-        make_final_line(first_point_x, first_point_y);
-        if(final_statics <= 5)
+    if (threshold >= 0) {
+        mybinary(threshold);
+        mypadding(2);
+        if (find_start(SCUT_IMAGE_H-3,10) && forward())
         {
-            /* 这一帧没补出可用中线：短暂沿用上一帧，超限按丢线处理 */
-            if (!reuse_last_line(near_mid)) {
-                return give_up_line(points, near_mid, element, stage);
+            /* 先记下元素状态：如果这帧补不出可用中线，要把它还原成上一帧的值 */
+            int prev_restate = restate, prev_reflag = reflag;
+            int prev_lr = LR, prev_out_y_lr = out_y_lr;
+            traced = true;
+            getmin_statics();
+            reset_target_line();
+            get_first_point();
+            get_line_seg_dir(0); 
+            get_line_seg_dir_filt(0);
+            get_line_seg_dir_compact(2);
+            l1=l_seg_dir_pack[0],r1=r_seg_dir_pack[0],l2=l_seg_dir_pack[1],r2=r_seg_dir_pack[1];
+            analyze_dir();
+            update_dir_info();
+            make_final_line(first_point_x, first_point_y);
+            if (final_statics <= 5)
+            {
+                /* 没形成可用中线：这一帧不算"重新寻到线"，
+                 * restate/reflag/LR 保持上一帧，等下一帧重判 */
+                restate = prev_restate;
+                reflag = prev_reflag;
+                LR = prev_lr;
+                out_y_lr = prev_out_y_lr;
+                traced = false;
             }
         }
-        else{
-            hold_frames = 0;
-            is_have_line = 1;
-            pred_points(preview_px, near_mid);
-            get_ppoints(near_mid);
-        }
-        
     }
-    else{
-        /* 本帧没找到线：短暂沿用上一帧，超限按丢线处理 */
-        if (!reuse_last_line(near_mid)) {
-            return give_up_line(points, near_mid, element, stage);
+
+    if (traced && final_statics > 5)
+    {
+        /* 本帧重新寻到线：更新缓存和 restate，标志位置 1 */
+        is_have_line = 1;
+        pred_points(preview_px, near_mid);
+        get_ppoints(near_mid);
+    }
+    else if (!reuse_last_line(near_mid))
+    {
+        /* 还没有任何成功寻线的结果，没有状态可以保持 */
+        points[0] = points[1] = points[2] = (TeamPixel){-1, -1};
+        if (near_mid != 0) {
+            *near_mid = (TeamPixel){-1, -1};
         }
+        return false;
     }
     *element=restate;
     *stage=is_have_line;
