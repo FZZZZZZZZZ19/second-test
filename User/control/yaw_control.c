@@ -3,6 +3,20 @@
 #include "core_math.h"
 #include <math.h>
 
+bool gyro_cached_turn_step(float goal_rad, float entry_rad, float measured_rad, float *omega) {
+    const float margin_rad = .08726646f; /* 5 degrees */
+    if (!isfinite(goal_rad) || !isfinite(entry_rad) || !isfinite(measured_rad) ||
+        fabsf(goal_rad) <= margin_rad)
+        return false;
+    float direction = copysignf(1, goal_rad);
+    float progress = direction * (measured_rad - entry_rad);
+    float remaining = fabsf(goal_rad) - progress;
+    if (remaining <= margin_rad || progress < -2 * margin_rad)
+        return false;
+    *omega = direction * app_clamp(4 * remaining, .40f, 2.0f);
+    return true;
+}
+
 bool gyro_corner_step(GyroCornerTurn *turn, int8_t direction, uint32_t frame_id,
                       uint32_t now, float angle_rad, float distance_m, float *omega) {
     const float quarter_turn_rad = 1.57079633f;

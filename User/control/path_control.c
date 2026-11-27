@@ -17,6 +17,7 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->state = v->state;
     o->confidence = v->confidence;
     o->stop_requested = v->stop_requested;
+    o->reused_path = v->reused_path;
     if (!v->valid || v->session_id != s->session || v->frame_id == s->previous_frame ||
         !isfinite(v->lateral_m) || !isfinite(v->forward_m) || v->forward_m <= -VISION_FORWARD_OFFSET_M ||
         !isfinite(v->curvature) || !isfinite(v->heading_rad) ||
@@ -43,6 +44,7 @@ bool control_path_step(PathControlState *s, const VisionOutput *v, const AppPara
     o->omega_raw = -speed * v->curvature - p->heading_gain_per_s * v->heading_rad
                    - (p->lateral_kp * e + p->lateral_kd * s->derivative);
     o->speed_cap_mps = v->speed_cap_mps;
+    o->direction_rad = -v->heading_rad; /* Relative heading demand, left positive. */
     o->corner_direction = v->corner_direction;
     const float sharp_turn_heading_rad = .78539816f; /* 45 degrees */
     o->sharp_turn = v->near_transverse || fabsf(v->heading_rad) >= sharp_turn_heading_rad;

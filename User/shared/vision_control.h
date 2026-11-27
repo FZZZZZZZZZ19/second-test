@@ -24,6 +24,7 @@ typedef struct {
     bool heading_only; /* Incomplete or degenerate geometry uses direction without curvature. */
     int8_t corner_direction; /* Close right-angle corner: left +1, right -1. */
     bool has_p0;
+    bool reused_path;
     float p0_x_px; /* Near sample in native camera coordinates. */
 } VisionOutput;
 #endif

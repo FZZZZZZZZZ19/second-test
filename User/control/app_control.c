@@ -20,6 +20,8 @@ static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
 static GyroCornerTurn gyro_corner;
+static float good_gyro_angle;
+static bool good_gyro_valid, cached_turn_done;
 void app_control_publish_gyro(const GyroMeasurement *measurement) {
     BoardIrqToken token = board_irq_save();
     gyro_latest = *measurement;
@@ -115,12 +117,19 @@ void app_control_tick_isr(void) {
     (void)side_encoder_sample(dt, now, &status.feedback);
     MotionRequest incoming;
     app_exchange_read_motion(&incoming);
-    if (incoming.session_id == status.session_id && incoming.valid && incoming.confidence >= 40) {
+    if (incoming.session_id == status.session_id && incoming.valid && incoming.confidence >= 40 &&
+        !incoming.reused_path) {
         if (!isfinite(incoming.omega_raw) || !isfinite(incoming.speed_cap_mps)) {
             if (status.mode == RUN_RUNNING || status.mode == RUN_TUNE_RUNNING)
                 fault(STOP_NONFINITE);
-        } else if ((uint32_t)(now - incoming.capture_ms) <= (uint32_t)g_app_param.hard_timeout_ms)
+        } else if ((uint32_t)(now - incoming.capture_ms) <= (uint32_t)g_app_param.hard_timeout_ms) {
+            if (!good.valid || good.frame_id != incoming.frame_id || good.session_id != incoming.session_id) {
+                good_gyro_angle = status.gyro.angle_rad;
+                good_gyro_valid = gyro_ready;
+                cached_turn_done = false;
+            }
             good = incoming;
+        }
     }
     status.vision_age_ms = good.valid ? now - good.capture_ms : UINT32_MAX;
     bool fresh = good.valid && good.session_id == status.session_id &&
@@ -169,12 +178,14 @@ void app_control_tick_isr(void) {
             memset(&good, 0, sizeof(good));
     }
     status.tune_remaining_ms = 0;
+    bool cached_path = false;
     if (status.mode == RUN_TUNE_WAIT || status.mode == RUN_TUNE_RUNNING) {
         uint32_t duration_ms = (uint32_t)(g_app_param.tune_duration_s * 1000.0f + .5f);
         bool tune_fresh = fresh && good.session_id == status.session_id &&
                           status.vision_age_ms <= APP_TUNE_FRAME_AGE_MS;
         bool current = incoming.session_id == status.session_id;
-        bool usable = current && incoming.valid && incoming.confidence >= 40;
+        cached_path = current && incoming.reused_path && now - incoming.capture_ms <= APP_TUNE_FRAME_AGE_MS;
+        bool usable = current && incoming.valid && incoming.confidence >= 40 && !incoming.reused_path;
         if ((requests & REQ_STOP) || (current && incoming.stop_requested) ||
             (status.mode == RUN_TUNE_RUNNING && !tune_continuous && now - tune_since >= duration_ms)) {
             status.mode = RUN_STATIC_DEBUG;
@@ -194,7 +205,9 @@ void app_control_tick_isr(void) {
                              good.speed_cap_mps > 0;
             bool search_frame = timing_ok && current && now - incoming.capture_ms <= APP_TUNE_FRAME_AGE_MS &&
                                 (!incoming.valid || can_start);
-            tune_search_step(now, search_frame, incoming.valid, stopped);
+            if (cached_path && tune_search == SEARCH_MOVING)
+                tune_search = SEARCH_OFF;
+            tune_search_step(now, search_frame, incoming.valid || incoming.reused_path, stopped);
             can_start = can_start && (stopped || tune_search == SEARCH_MOVING);
             if (retry) {
                 if (!can_start)
@@ -211,12 +224,38 @@ void app_control_tick_isr(void) {
                 tune_since = now;
             } else if (!retry && now - tune_since >= APP_TUNE_WAIT_MS)
                 tune_wait(now, STOP_VISION, false);
-        } else if (!tune_fresh || !usable)
+        } else if (!cached_path && (!tune_fresh || !usable))
             tune_wait(now, STOP_VISION, tune_continuous);
         if (status.mode == RUN_TUNE_RUNNING && !tune_continuous)
             status.tune_remaining_ms = duration_ms - (now - tune_since);
     }
     bool searching = status.mode == RUN_TUNE_WAIT && tune_search == SEARCH_MOVING;
+    float cached_omega = 0;
+    bool cached_rotation = false;
+    if (status.mode == RUN_TUNE_RUNNING && cached_path && !cached_turn_done) {
+        const float quarter_turn = 1.57079633f;
+        float goal = fmaxf(-quarter_turn,fminf(quarter_turn,good.direction_rad));
+        float entry = good_gyro_angle;
+        uint32_t since = good.capture_ms;
+        bool known_corner = gyro_corner.direction &&
+                            (gyro_corner.active || gyro_corner.direction == good.corner_direction);
+        if (known_corner) {
+            goal = gyro_corner.direction * quarter_turn;
+            entry = gyro_corner.entry_angle_rad;
+            since = gyro_corner.entry_ms;
+        }
+        cached_rotation = gyro_enabled && gyro_ready && good_gyro_valid && incoming.valid &&
+                          good.valid && good.session_id == status.session_id &&
+                          (!known_corner || gyro_corner.active) && now - since < APP_CACHED_TURN_MAX_MS &&
+                          gyro_cached_turn_step(goal,entry,status.gyro.angle_rad,&cached_omega);
+        cached_turn_done = !cached_rotation;
+        if (cached_turn_done && known_corner) {
+            gyro_corner.active = false;
+            gyro_corner.finish_frame = incoming.frame_id;
+            gyro_corner.finish_distance_m =
+                .5f * (status.feedback.rolling_m[0] + status.feedback.rolling_m[1]);
+        }
+    }
     if (status.mode == RUN_DUTY_DEBUG) {
         /* Explicit open-loop diagnostic command, independent of racing duty_limit. */
         status.duty[0] = status.duty[1] = debug_duty_ticks / 10000.0f;
@@ -238,11 +277,12 @@ void app_control_tick_isr(void) {
             if (!ok) fault(STOP_NONFINITE);
             else motor_apply_forward(status.duty[0], status.duty[1]);
         }
-    } else if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING || status.mode == RUN_TUNE_RUNNING) {
+    } else if (status.mode == RUN_RUNNING || status.mode == RUN_STOPPING ||
+               (status.mode == RUN_TUNE_RUNNING && (!cached_path || cached_rotation))) {
         if (!status.feedback.valid)
             fault(STOP_ENCODER);
         else if (!good.valid || good.session_id != status.session_id ||
-                 status.vision_age_ms > (uint32_t)g_app_param.hard_timeout_ms)
+                 (!cached_rotation && status.vision_age_ms > (uint32_t)g_app_param.hard_timeout_ms))
             fault(STOP_VISION);
         else if (incoming.session_id == status.session_id && incoming.stop_requested) {
             status.mode = RUN_STOPPING;
@@ -252,7 +292,7 @@ void app_control_tick_isr(void) {
             bool stopping = status.mode == RUN_STOPPING;
             float speed = good.speed_cap_mps, omega = good.omega_raw;
             if (status.mode == RUN_TUNE_RUNNING) speed = fminf(speed, g_app_param.tune_speed_mps);
-            if (status.vision_age_ms > (uint32_t)g_app_param.soft_timeout_ms) {
+            if (!cached_rotation && status.vision_age_ms > (uint32_t)g_app_param.soft_timeout_ms) {
                 speed = 0;
                 stopping = true;
             }
@@ -260,7 +300,11 @@ void app_control_tick_isr(void) {
             StopReason failure = STOP_NONFINITE;
             SteeringMode steering = good.sharp_turn ? STEERING_SHARP_TURN :
                                     good.recentering ? STEERING_RECENTER : STEERING_NORMAL;
-            if (gyro_enabled && gyro_ready && !stopping && speed > 0 &&
+            if (cached_rotation) {
+                speed = fminf(speed,g_app_param.speed_corner);
+                omega = cached_omega;
+                steering = STEERING_SHARP_TURN;
+            } else if (gyro_enabled && gyro_ready && !stopping && speed > 0 &&
                 gyro_corner_step(&gyro_corner, good.corner_direction, good.frame_id, now,
                                  status.gyro.angle_rad,
                                  .5f * (status.feedback.rolling_m[0] + status.feedback.rolling_m[1]),
@@ -269,7 +313,9 @@ void app_control_tick_isr(void) {
                 steering = STEERING_SHARP_TURN;
             }
             status.omega_target_radps = omega;
-            if (gyro_enabled && !stopping) {
+            if (cached_rotation) {
+                yaw_integral = 0;
+            } else if (gyro_enabled && !stopping) {
                 ok = gyro_ready && yaw_control_step(&yaw_integral, &g_app_param, omega,
                          status.gyro.rate_radps, dt, status.targets.limited, &omega);
                 if (!ok)

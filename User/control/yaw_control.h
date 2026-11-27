@@ -18,6 +18,7 @@ typedef struct {
 
 bool gyro_corner_step(GyroCornerTurn *turn, int8_t direction, uint32_t frame_id,
                       uint32_t now, float angle_rad, float distance_m, float *omega);
+bool gyro_cached_turn_step(float goal_rad, float entry_rad, float measured_rad, float *omega);
 
 bool gyro_estimator_step(GyroEstimator *s, float z, float norm, float accel,
                          bool stationary, uint32_t now);

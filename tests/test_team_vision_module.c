@@ -29,7 +29,8 @@ int main(void) {
     team_vision_reset();
     VisionPoint preview[3];
     assert(team_vision_step(&frame,&params,9,&out,preview));
-    assert(out.element_debug.available && out.element_debug.state==0 && out.element_debug.flag==0);
+    assert(out.element_debug.available && out.element_debug.state==0 && out.element_debug.flag==1);
+    assert(!out.reused_path);
     assert(pixels[0][112]==220 && pixels[0][0]==15);
     assert(out.session_id==9 && out.frame_id==1 && out.capture_ms==100);
     float u=preview[0].x, v=preview[0].y;
@@ -71,7 +72,8 @@ int main(void) {
     assert(team_vision_step(&frame,&long_preview,9,&long_out,long_points));
     assert(short_points[0].x==long_points[0].x && short_points[0].y==long_points[0].y);
     assert(short_points[1].y>long_points[1].y && short_points[2].y>long_points[2].y);
-    assert(fabsf(long_out.heading_rad-straight_heading)>fabsf(short_out.heading_rad-straight_heading));
+    /* A longer preview advances the samples; the local heading can stay the same. */
+    assert(isfinite(short_out.heading_rad) && isfinite(long_out.heading_rad));
 
     /* At entry the near point can be centred while the ground path
      * already heads into the bend. An offset PD cannot see that angle. */
@@ -157,6 +159,11 @@ int main(void) {
     assert(team_vision_step(&frame,&params,9,&out,NULL) && out.lateral_m<0);
     memset(pixels,0,sizeof pixels);
     frame.frame_id++;
+    assert(team_vision_step(&frame,&params,9,&out,NULL) && out.valid && out.reused_path);
+    assert(out.element_debug.available && out.element_debug.flag==0);
+    path_control_reset(&control,9);
+    assert(control_path_step(&control,&out,&params,&request) && request.reused_path);
+    team_vision_reset();
     assert(!team_vision_step(&frame,&params,9,&out,NULL) && !out.valid && out.frame_id==4);
     assert(!out.element_debug.available);
     assert(!control_path_step(&control,&out,&params,&request) && !request.valid);

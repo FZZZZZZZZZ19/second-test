@@ -19,6 +19,7 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
     if (element >= 0)
         out->element_debug = (VisionElementDebug){(uint8_t)element, (uint8_t)stage, true};
     if (!has_path) return false;
+    out->reused_path = stage == 0;
 
     out->state=TRACK_NORMAL;
     out->speed_cap_mps=params->speed_normal;
@@ -27,7 +28,7 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
         out->speed_cap_mps=params->speed_corner;
         break;
     case 2:
-        out->state=stage==2 ? TRACK_Y_COMMITTED : TRACK_Y_MERGE;
+        out->state=TRACK_Y_MERGE;
         break;
     case 3:
         out->state=TRACK_CROSS_PASS;

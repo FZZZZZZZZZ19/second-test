@@ -80,6 +80,43 @@ static void check_gyro_corners(void) {
     assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
     g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
 }
+static void check_cached_turn(void) {
+    g_app_param.flags |= APP_FLAG_GYRO_LOOP;
+    for (int dir=-1;dir<=1;dir+=2) {
+        const float base=.8f;
+        app_control_publish_gyro(&(GyroMeasurement){.stamp_ms=board_time_ms(),
+            .status=GYRO_READY,.angle_rad=base});
+        tick(REQ_TRACK_START);
+        publish_tune_frame();
+        motion.direction_rad=dir*1.0f;
+        tick(0);
+        assert(output.mode==RUN_TUNE_RUNNING);
+
+        const float angles[]={base,base+dir*.85f,base+dir*.96f,base+dir*.75f};
+        for (unsigned i=0;i<sizeof angles/sizeof angles[0];i++) {
+            app_control_publish_gyro(&(GyroMeasurement){.stamp_ms=board_time_ms(),
+                .status=GYRO_READY,.angle_rad=angles[i]});
+            publish_tune_frame(); motion.reused_path=true;
+            tick(0);
+            if (i<2)
+                assert(dir*output.omega_target_radps>0);
+            else
+                assert(output.omega_target_radps==0 && duty[0]==0 && duty[1]==0);
+        }
+        assert(output.vision_age_ms>0); /* Reused points did not refresh the real observation. */
+        publish_lost_frame(); tick(0);
+        assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
+        publish_lost_frame(); tick(0);
+        assert(duty[0]>0 && duty[1]>0 && output.targets.left_mps==output.targets.right_mps);
+        tick(REQ_HALT);
+        assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
+    }
+    float omega;
+    assert(!gyro_cached_turn_step(1,0,-.20f,&omega));
+    assert(!gyro_cached_turn_step(-1,0,.20f,&omega));
+    assert(!gyro_cached_turn_step(1,0,NAN,&omega));
+    g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
+}
 static void check_continuous_start(void) {
     feedback.valid=true;
     app_control_camera_ready(true);
@@ -295,6 +332,7 @@ int main(void) {
     check_continuous_start();
     check_tune();
     check_gyro_corners();
+    check_cached_turn();
     check_gyro();
     puts("PASS: continuous start, bounded line search, vision recovery and halt");
     puts("PASS: gyro corner assist through visual cue loss and consecutive same/opposite turns");

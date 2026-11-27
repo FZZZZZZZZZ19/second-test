@@ -108,7 +108,7 @@ typedef struct {
     float speed_cap_mps, omega_raw;
     float direction_rad, distance_px;
     uint8_t confidence;
-    bool valid, stop_requested, sharp_turn, recentering;
+    bool valid, stop_requested, sharp_turn, recentering, reused_path;
     int8_t corner_direction; /* Left +1, right -1. */
 } MotionRequest;
 typedef enum { GYRO_WAIT, GYRO_CALIBRATING, GYRO_READY, GYRO_ERROR, GYRO_STALE } GyroStatus;
