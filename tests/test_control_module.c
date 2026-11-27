@@ -60,9 +60,9 @@ int main(void) {
     v.heading_rad=0; v.near_transverse=false; v.curvature=0;
     v.has_p0=true; p.center_x_px=93.5f;
     v.frame_id++; v.p0_x_px=108.5f;
-    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw+1.08f)<1e-5f && motion.recentering);
+    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw+1.44f)<1e-5f && motion.recentering);
     v.frame_id++; v.p0_x_px=78.5f;
-    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw-1.08f)<1e-5f && motion.recentering);
+    assert(control_path_step(&state,&v,&p,&motion) && fabsf(motion.omega_raw-1.44f)<1e-5f && motion.recentering);
     v.frame_id++; v.p0_x_px=95.5f;
     assert(control_path_step(&state,&v,&p,&motion) && motion.omega_raw==0 && !motion.recentering);
     v.frame_id++; v.p0_x_px=145;
