@@ -16,6 +16,7 @@ static unsigned tune_retry_frames;
 static bool tune_continuous;
 static enum { SEARCH_OFF, SEARCH_WAITING, SEARCH_MOVING } tune_search;
 static float tune_search_origin_m[2];
+static float last_track_speed;
 static volatile bool initialized, camera_ok;
 static GyroMeasurement gyro_latest;
 static float yaw_integral;
@@ -41,6 +42,7 @@ void app_control_init(void) {
     memset(pi, 0, sizeof(pi));
     memset(&plan, 0, sizeof(plan));
     yaw_integral = 0;
+    last_track_speed = 0;
     gyro_corner = (GyroCornerTurn){0};
     previous_us = board_time_us();
     initialized = true;
@@ -61,7 +63,7 @@ static void tune_wait(uint32_t now, StopReason reason, bool search) {
     status.mode = RUN_TUNE_WAIT;
     status.reason = reason;
     tune_since = now;
-    tune_search = search ? SEARCH_WAITING : SEARCH_OFF;
+    tune_search = search && last_track_speed > 0 ? SEARCH_WAITING : SEARCH_OFF;
     memcpy(tune_search_origin_m, status.feedback.rolling_m, sizeof tune_search_origin_m);
     tune_retry_frames = 0;
     status.session_id++;
@@ -147,6 +149,7 @@ void app_control_tick_isr(void) {
         requests = 0;
     } else if (status.mode == RUN_STATIC_DEBUG && (requests & (REQ_TRACK_TUNE | REQ_TRACK_START))) {
         tune_continuous = (requests & REQ_TRACK_START) != 0;
+        last_track_speed = 0;
         tune_wait(now, STOP_NONE, false);
         if (!camera_ok || !param_valid(&g_app_param)) fault(STOP_CONFIG);
         else if (gyro_enabled && !gyro_ready) fault(STOP_GYRO);
@@ -264,8 +267,7 @@ void app_control_tick_isr(void) {
     } else if (status.mode == RUN_SPEED_DEBUG || searching) {
         if (!status.feedback.valid || !param_valid(&g_app_param)) fault(STOP_ENCODER);
         else {
-            float speed = searching ? fminf(APP_START_SEARCH_SPEED_MPS, g_app_param.tune_speed_mps)
-                                    : g_app_param.debug_speed_mps;
+            float speed = searching ? last_track_speed : g_app_param.debug_speed_mps;
             bool ok = motion_plan_step(&plan, &g_app_param, speed, 0,
                                        dt, false, STEERING_NORMAL, &status.targets);
             if (ok) ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
@@ -301,7 +303,7 @@ void app_control_tick_isr(void) {
             SteeringMode steering = good.sharp_turn ? STEERING_SHARP_TURN :
                                     good.recentering ? STEERING_RECENTER : STEERING_NORMAL;
             if (cached_rotation) {
-                speed = fminf(speed,g_app_param.speed_corner);
+                speed = last_track_speed;
                 omega = cached_omega;
                 steering = STEERING_SHARP_TURN;
             } else if (gyro_enabled && gyro_ready && !stopping && speed > 0 &&
@@ -328,6 +330,8 @@ void app_control_tick_isr(void) {
             if (ok)
                 ok = motion_plan_step(&plan, &g_app_param, speed, omega, dt, stopping,
                                       steering, &status.targets);
+            if (ok && status.mode == RUN_TUNE_RUNNING && !cached_rotation && !stopping)
+                last_track_speed = fminf(speed,g_app_param.speed_limit_mps);
             if (ok)
                 ok = speed_pi_step(&pi[0], plan.left, status.feedback.speed_mps[0], dt,
                                    g_app_param.kp_left, g_app_param.ki_left, g_app_param.ff_left,

@@ -81,6 +81,10 @@ static void check_gyro_corners(void) {
     g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
 }
 static void check_cached_turn(void) {
+    float original_tune_speed=g_app_param.tune_speed_mps;
+    float original_speed_limit=g_app_param.speed_limit_mps;
+    g_app_param.tune_speed_mps=.30f;
+    g_app_param.speed_limit_mps=.60f;
     g_app_param.flags |= APP_FLAG_GYRO_LOOP;
     for (int dir=-1;dir<=1;dir+=2) {
         const float base=.8f;
@@ -91,6 +95,12 @@ static void check_cached_turn(void) {
         motion.direction_rad=dir*1.0f;
         tick(0);
         assert(output.mode==RUN_TUNE_RUNNING);
+        for (unsigned i=0;i<250;i++) {
+            app_control_publish_gyro(&(GyroMeasurement){.stamp_ms=board_time_ms(),
+                .status=GYRO_READY,.angle_rad=base});
+            publish_tune_frame(); motion.direction_rad=dir*1.0f;
+            tick(0);
+        }
 
         const float angles[]={base,base+dir*.85f,base+dir*.96f,base+dir*.75f};
         for (unsigned i=0;i<sizeof angles/sizeof angles[0];i++) {
@@ -98,9 +108,10 @@ static void check_cached_turn(void) {
                 .status=GYRO_READY,.angle_rad=angles[i]});
             publish_tune_frame(); motion.reused_path=true;
             tick(0);
-            if (i<2)
+            if (i<2) {
                 assert(dir*output.omega_target_radps>0);
-            else
+                assert(fabsf(output.targets.model_v_mps-.30f)<.01f);
+            } else
                 assert(output.omega_target_radps==0 && duty[0]==0 && duty[1]==0);
         }
         assert(output.vision_age_ms>0); /* Reused points did not refresh the real observation. */
@@ -116,11 +127,15 @@ static void check_cached_turn(void) {
     assert(!gyro_cached_turn_step(-1,0,.20f,&omega));
     assert(!gyro_cached_turn_step(1,0,NAN,&omega));
     g_app_param.flags &= ~APP_FLAG_GYRO_LOOP;
+    g_app_param.tune_speed_mps=original_tune_speed;
+    g_app_param.speed_limit_mps=original_speed_limit;
 }
 static void check_continuous_start(void) {
     feedback.valid=true;
     app_control_camera_ready(true);
     g_app_param.tune_duration_s=APP_TUNE_MIN_S;
+    float original_tune_speed=g_app_param.tune_speed_mps;
+    g_app_param.tune_speed_mps=.18f;
     publish_tune_frame(); tick(REQ_TRACK_START);
     assert(output.mode==RUN_TUNE_WAIT && duty[0]==0 && duty[1]==0);
     publish_tune_frame(); tick(0);
@@ -135,11 +150,11 @@ static void check_continuous_start(void) {
     publish_lost_frame(); tick(0);
     assert(duty[0]==0 && duty[1]==0); /* Wait for the previous run to slow down. */
     feedback.speed_mps[0]=feedback.speed_mps[1]=0;
-    for (unsigned i=0;i<80;i++) { publish_lost_frame(); tick(0); }
+    for (unsigned i=0;i<160;i++) { publish_lost_frame(); tick(0); }
     assert(output.mode==RUN_TUNE_WAIT && duty[0]>0 && duty[1]>0);
-    assert(fabsf(output.targets.left_mps-APP_START_SEARCH_SPEED_MPS)<1e-5f);
+    assert(fabsf(output.targets.left_mps-.18f)<1e-5f);
     assert(output.targets.left_mps==output.targets.right_mps);
-    feedback.speed_mps[0]=feedback.speed_mps[1]=APP_START_SEARCH_SPEED_MPS;
+    feedback.speed_mps[0]=feedback.speed_mps[1]=.18f;
     publish_tune_frame(); tick(0);
     for (unsigned i=0;i<5;i++) tick(0);
     assert(output.mode==RUN_TUNE_WAIT); /* One repeated frame cannot restore steering. */
@@ -174,6 +189,7 @@ static void check_continuous_start(void) {
     assert(duty[0]>0 && duty[1]>0);
     tick(REQ_HALT);
     assert(output.mode==RUN_STATIC_DEBUG && duty[0]==0 && duty[1]==0);
+    g_app_param.tune_speed_mps=original_tune_speed;
 }
 static void check_tune(void) {
     feedback.valid=true;
