@@ -22,23 +22,25 @@ bool team_vision_step(const FrameView *frame, const AppParam *params, uint32_t s
     out->reused_path = stage == 0;
 
     out->state=TRACK_NORMAL;
-    out->speed_cap_mps=params->speed_normal;
+    out->speed_cap_mps=(element>=1 && element<=6) ? params->speed_element : params->speed_normal;
+    /* The second output from v1.8 is a fresh/reused flag, not an element phase. */
     switch (element) {
     case 1:
-        out->speed_cap_mps=params->speed_corner;
+        out->state=TRACK_CROSS_PASS;
         break;
     case 2:
         out->state=TRACK_Y_MERGE;
         break;
     case 3:
-        out->state=TRACK_CROSS_PASS;
+        out->state=TRACK_ISLAND_ENTER;
         break;
     case 4:
-        out->state=stage<=6 ? TRACK_ISLAND_ENTER :
-                   stage<=8 ? TRACK_ISLAND_FOLLOW : TRACK_ISLAND_EXIT;
+        out->state=TRACK_ISLAND_EXIT;
+        break;
+    case 5:
+        out->state=TRACK_Y_CLEAR;
         break;
     }
-    if (element>=2) out->speed_cap_mps=params->speed_element;
     float u[3],v[3];
     for (unsigned i=0;i<3;i++) {
         u[i]=points[i].x;

@@ -1,6 +1,6 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
-#define APP_VERSION "1.8.2"
+#define APP_VERSION "1.8.3"
 #define APP_GYRO_PERIOD_MS 5u
 #define APP_GYRO_TIMEOUT_MS 50u
 #define APP_GYRO_CAL_SAMPLES 800u
